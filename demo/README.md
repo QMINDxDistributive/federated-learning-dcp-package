@@ -38,6 +38,34 @@ pacing as a real run. Use it to rehearse.
       └──────── join, heartbeats (name, row count, no rows) ──────  fl-agent.js (rows stay here)
 ```
 
+### Why one compute group per laptop
+
+> [!IMPORTANT]
+> DCP training across laptops needs **one DCP compute group for each laptop that joins**.
+> Groups are created by hand in the DCP portal and listed in `demo/devices.json`. Without
+> them, laptops can join the dashboard, but only Simulation mode can train.
+
+- Your DCP password (keystore) decides who deploys and pays for jobs. It does not decide
+  which computer runs them. By default any public DCP worker can pick up a job.
+- Before decision 0004, that was fine: each job carried its state's rows, so any machine
+  could run it. Now the rows stay on each laptop, and a job only says "read
+  `localhost:<port>` on this machine". The Alaska job therefore has to run on the Alaska
+  laptop.
+- A compute group is DCP's only way to limit which workers run a job. If each laptop's
+  worker is the only member of its group, its jobs can only run there.
+- One shared group is not enough. DCP picks which member takes each job, so the Alaska
+  job would often land on another laptop, fail and be retried.
+- It cannot be one job with a slice per laptop either. DCP hands slices to whichever
+  workers ask first, so one laptop could get two slices and another none. Newton needs every
+  laptop exactly once per round.
+- The groups are a reusable pool, not per person. Create them once (e.g. 8), and any
+  laptop that joins borrows a free one, which goes back to the pool when it leaves. dcp-client
+  has no API to create groups, so this is a manual step for now.
+
+Hospitals would each have their own long-lived group, which also acts as their consent: their
+worker runs nothing that isn't attached to it. Ways to remove the manual step are in
+[questions for Alex](../specs/shared/questions-for-alex.md) (A1–A5).
+
 ### One-time setup on the coordinator
 
 1. **Compute groups.** Each laptop that joins needs its own DCP compute group, so its jobs can

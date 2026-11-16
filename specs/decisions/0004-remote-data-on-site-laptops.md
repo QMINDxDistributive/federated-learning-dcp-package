@@ -73,8 +73,9 @@ Option 2 (Proposed) for the demo's DCP mode. The library keeps both paths: `site
 - The coordinator's dashboard and controls answer only on loopback. The join page, agent
   download and agent API are open to the LAN, and the join and sample endpoints require a
   session token that changes on every restart.
-- TODO: ask Distributive whether a browser worker could replace the agent (true one-click
-  joining), and whether a worker can be limited to approved work functions.
+- Open questions for Distributive (creating groups from code, sending a job to one specific
+  worker, browser workers, limiting workers to approved work functions) are tracked in
+  [questions-for-alex.md](../shared/questions-for-alex.md).
 - The demo's evaluator runs with `dcp-evaluator-start -t node`, which `dcp-worker` warns is not
   for production. TODO: confirm with Distributive whether to use the native evaluator or the
   Windows screensaver installer on the teammates' laptops instead.
