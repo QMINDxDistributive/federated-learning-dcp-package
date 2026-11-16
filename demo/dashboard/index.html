@@ -3,114 +3,268 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Federated Arthritis Model</title>
+<title>Federated Learning on DCP</title>
 <style>
   :root {
-    --bg: #0f1320; --panel: #171c2c; --line: #2a3150; --text: #e8ebf5; --muted: #8b93b0;
-    --accent: #5b8cff; --good: #3ecf8e; --warn: #f5b942; --bad: #ff6b6b;
+    --bg: #0b0f1a; --panel: #121829; --panel-2: #182036; --line: #263052; --line-2: #34406a;
+    --text: #e8ecf8; --muted: #8a93b2; --dim: #5d6688;
+    --accent: #5b8cff; --accent-soft: rgba(91, 140, 255, .18);
+    --good: #3ecf8e; --good-soft: rgba(62, 207, 142, .16);
+    --warn: #f5b942; --warn-soft: rgba(245, 185, 66, .16); --bad: #ff6b6b;
+    --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; }
-  header { display: flex; align-items: center; gap: 16px; padding: 20px 32px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-  h1 { font-size: 24px; margin: 0; flex: 1; }
-  h1 small { display: block; color: var(--muted); font-size: 14px; font-weight: 400; margin-top: 2px; }
-  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
+
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0; flex: 1; min-width: 260px; letter-spacing: -.01em; }
+  h1 small { display: block; color: var(--muted); font-size: 13px; font-weight: 400; margin-top: 2px; }
   .toggle { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .toggle button { background: none; border: 0; color: var(--muted); padding: 10px 16px; font: inherit; cursor: pointer; }
+  .toggle button { background: none; border: 0; color: var(--muted); padding: 9px 14px; font: inherit; cursor: pointer; }
   .toggle button.on { background: var(--line); color: var(--text); }
-  #train { background: var(--accent); color: white; border: 0; border-radius: 8px; padding: 12px 28px; font: 600 16px system-ui; cursor: pointer; }
-  #train:disabled { opacity: .5; cursor: default; }
-  main { padding: 24px 32px; display: grid; gap: 24px; grid-template-columns: repeat(12, 1fr); }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
-  .sites { grid-column: span 12; }
-  .site-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
-  .site { border: 1px solid var(--line); border-radius: 10px; padding: 14px; transition: border-color .2s, box-shadow .2s; }
-  .site .name { font-weight: 600; font-size: 18px; text-transform: capitalize; }
-  .site .rows { color: var(--muted); font-size: 14px; }
-  .site .status { margin-top: 10px; font-size: 13px; color: var(--muted); min-height: 18px; }
-  .site.busy { border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset; }
-  .site.done { border-color: var(--good); }
-  .site .lock { font-size: 12px; color: var(--muted); margin-top: 6px; }
-  .training { grid-column: span 7; }
-  .stats { grid-column: span 5; display: grid; gap: 12px; align-content: start; }
-  .big { font-size: 44px; font-weight: 700; line-height: 1; }
-  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .kv .panel { padding: 16px; }
-  .label { color: var(--muted); font-size: 13px; margin-top: 6px; }
-  svg text { fill: var(--muted); font-size: 12px; }
-  .results { grid-column: span 6; }
-  .coefs { grid-column: span 6; }
-  .bar-row { display: grid; grid-template-columns: 150px 1fr 60px; align-items: center; gap: 10px; margin: 8px 0; }
-  .bar-row .n { text-transform: capitalize; }
-  .bar { height: 22px; background: var(--line); border-radius: 4px; overflow: hidden; }
-  .bar > div { height: 100%; background: var(--muted); width: 0; transition: width .8s; }
+  .btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 10px 24px; font: 600 15px system-ui; cursor: pointer; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn.ghost { background: none; border: 1px solid var(--line-2); color: var(--text); }
+
+  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
+  .stage { position: relative; display: flex; flex-direction: column; min-height: 0; padding: 16px 20px 12px; }
+  .phase { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; min-height: 28px; }
+  .phase .round { font: 600 13px var(--mono); color: var(--accent); background: var(--accent-soft); padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+  .phase .text { color: var(--muted); }
+  .phase .text b { color: var(--text); font-weight: 600; }
+  #diagram { flex: 1; width: 100%; min-height: 380px; }
+  .banner { margin-top: 8px; padding: 10px 14px; border-radius: 8px; background: rgba(255, 107, 107, .12); border: 1px solid rgba(255, 107, 107, .4); color: #ffc2c2; font-size: 14px; display: none; }
+  .banner.show { display: block; }
+
+  aside { border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
+  aside section { padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .counters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .counter .v { font: 600 20px var(--mono); }
+  .counter .l { color: var(--muted); font-size: 12px; }
+  .counter.kept .v { color: var(--good); }
+  .counter.sent .v { color: var(--accent); }
+  .weights .w { display: grid; grid-template-columns: 112px 1fr 54px; gap: 8px; align-items: center; font-size: 12.5px; margin: 5px 0; }
+  .weights .w .n { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .weights .w .v { font-family: var(--mono); text-align: right; color: var(--muted); }
+  .weights .track { position: relative; height: 10px; background: var(--panel-2); border-radius: 3px; }
+  .weights .track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--line-2); }
+  .weights .fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; transition: left .7s, width .7s, background .3s; }
+  .weights .empty { color: var(--dim); font-size: 13px; }
+  .feed-wrap { flex: 1; min-height: 160px; display: flex; flex-direction: column; border-bottom: 0 !important; }
+  #feed { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; font-size: 12.5px; }
+  #feed li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; padding: 5px 0; border-bottom: 1px solid rgba(38, 48, 82, .6); animation: feedIn .35s ease-out; }
+  #feed li .i { font-family: var(--mono); text-align: center; }
+  #feed li .b { color: var(--muted); }
+  #feed li .b b { color: var(--text); font-weight: 600; text-transform: capitalize; }
+  #feed li .b code { font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
+  #feed li.out .i { color: var(--accent); }
+  #feed li.in .i { color: var(--good); }
+  #feed li.local .i { color: var(--warn); }
+  #feed li.coord .i { color: #c9a7ff; }
+  #feed li.err .i, #feed li.err .b { color: var(--bad); }
+  @keyframes feedIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+  /* ---- diagram ---- */
+  svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .link { fill: none; stroke: var(--line); stroke-width: 2; }
+  .link.live { stroke: var(--line-2); }
+  .link.lane { stroke-width: 1.5; stroke-dasharray: 2 4; }
+  .node-box { fill: var(--panel); stroke: var(--line-2); stroke-width: 1.5; transition: stroke .3s, fill .3s; }
+  .node-title { fill: var(--text); font-size: 16px; font-weight: 650; }
+  .node-sub { fill: var(--muted); font-size: 11.5px; }
+  .node-status { fill: var(--accent); font-size: 12px; font-family: var(--mono); }
+  .coord.busy .node-box { stroke: #c9a7ff; fill: #1a1832; }
+  .coord.busy .node-status { fill: #c9a7ff; }
+  .sched .node-box { fill: var(--panel-2); }
+  .sched-badge circle { fill: var(--accent); }
+  .sched-badge text { fill: #fff; font-size: 11px; font-weight: 700; }
+  .wstrip rect { transition: y .7s, height .7s, fill .3s; }
+
+  .laptop { transition: opacity .6s; }
+  .laptop .screen { fill: var(--panel); stroke: var(--line-2); stroke-width: 1.5; stroke-dasharray: 5 4; transition: stroke .3s; }
+  .laptop .display { fill: #0d1322; }
+  .laptop .base { fill: var(--panel-2); stroke: var(--line-2); stroke-width: 1.2; }
+  .laptop .st-name { fill: var(--text); font-size: 15px; font-weight: 650; text-transform: capitalize; }
+  .laptop .st-dev { fill: var(--dim); font-size: 11px; font-family: var(--mono); }
+  .laptop .st-status { fill: var(--muted); font-size: 11.5px; }
+  .laptop .loop { stroke: var(--line-2); stroke-width: 1.5; stroke-dasharray: 3 3; }
+  .laptop .loop-l { fill: var(--dim); font-size: 10px; font-family: var(--mono); }
+  .laptop .db { fill: var(--panel-2); stroke: var(--warn); stroke-opacity: .5; stroke-width: 1.3; transition: fill .3s, stroke-opacity .3s; }
+  .laptop .db-l { fill: var(--muted); font-size: 11.5px; }
+  .laptop .db-l2 { fill: var(--dim); font-size: 10.5px; }
+  .laptop.ghost { opacity: .38; }
+  .laptop.online .screen { stroke-dasharray: none; }
+  .laptop.working .screen { stroke: var(--accent); }
+  .laptop.working .st-status { fill: var(--accent); }
+  .laptop.reading .db { fill: var(--warn-soft); stroke-opacity: 1; }
+  .laptop.reading .st-status { fill: var(--warn); }
+  .laptop.sent .screen { stroke: var(--good); }
+  .laptop.sent .st-status { fill: var(--good); }
+  .laptop.failed .screen { stroke: var(--bad); }
+  .laptop.failed .st-status { fill: var(--bad); }
+  .ripple { fill: none; stroke: var(--good); stroke-width: 2; }
+
+  .packet rect { rx: 6; }
+  .packet.out rect { fill: var(--accent); }
+  .packet.in rect { fill: var(--good); }
+  .packet text { fill: #fff; font: 600 11px var(--mono); }
+  .packet.in text { fill: #06281a; }
+  .rowdot { fill: var(--warn); }
+
+  /* ---- dialogs ---- */
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line-2); border-radius: 14px; padding: 0; }
+  dialog::backdrop { background: rgba(4, 6, 14, .72); backdrop-filter: blur(2px); }
+  #pw { width: min(420px, calc(100vw - 32px)); padding: 24px; }
+  #pw h3 { margin: 0 0 6px; font-size: 20px; }
+  #pw p { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+  #pw label { display: block; font-size: 14px; margin: 12px 0 6px; }
+  #pw input[type=password] { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
+  #pw input.bad { border-color: var(--bad); }
+  #pw .check { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 14px; margin-top: 12px; }
+  .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  #pw .msg { color: var(--bad); font-size: 14px; min-height: 18px; margin-top: 12px; }
+
+  #results { width: min(1040px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+  #results[open] { animation: pop .35s cubic-bezier(.2, .9, .3, 1.2); }
+  @keyframes pop { from { opacity: 0; transform: scale(.94) translateY(10px); } to { opacity: 1; transform: none; } }
+  .r-head { padding: 22px 26px 14px; border-bottom: 1px solid var(--line); display: flex; gap: 14px; align-items: center; }
+  .r-head .tick { width: 40px; height: 40px; border-radius: 50%; background: var(--good-soft); color: var(--good); display: grid; place-items: center; font-size: 22px; flex: none; }
+  .r-head h3 { margin: 0; font-size: 21px; }
+  .r-head p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+  .r-grid { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 0; }
+  .r-card { padding: 18px 22px; border-right: 1px solid var(--line); min-width: 0; }
+  .r-card:last-child { border-right: 0; }
+  .r-card h4 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .r-card .sub { color: var(--dim); font-size: 12.5px; margin-bottom: 14px; }
+  .bar-row { display: grid; grid-template-columns: 136px 1fr 48px; align-items: center; gap: 8px; margin: 7px 0; font-size: 13.5px; }
+  .bar-row .n { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-row .n small { color: var(--dim); }
+  .bar-row .v { font-family: var(--mono); text-align: right; }
+  .bar { height: 18px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: var(--line-2); transition: width 1s cubic-bezier(.2, .8, .2, 1); }
+  .bar-row.fed .n { color: var(--text); font-weight: 700; }
   .bar-row.fed .bar > div { background: var(--good); }
-  .bar-row.fed .n { font-weight: 700; }
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 15px; }
-  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); }
-  th:first-child, td:first-child { text-align: left; }
-  th { color: var(--muted); font-weight: 500; font-size: 13px; }
-  .match { color: var(--good); font-weight: 600; }
-  #log { color: var(--muted); font-size: 13px; margin-top: 8px; min-height: 18px; }
-  .err { color: var(--bad); }
-  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 24px; width: min(420px, calc(100vw - 32px)); }
-  dialog::backdrop { background: rgba(5, 8, 16, .7); }
-  dialog h3 { margin: 0 0 6px; font-size: 20px; }
-  dialog p { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
-  dialog label { display: block; font-size: 14px; margin: 12px 0 6px; }
-  dialog input[type=password] { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
-  dialog input.bad { border-color: var(--bad); }
-  dialog .check { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 14px; margin-top: 12px; }
-  dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
-  dialog .actions button { border-radius: 8px; padding: 10px 18px; font: 600 15px system-ui; cursor: pointer; border: 1px solid var(--line); background: none; color: var(--text); }
-  dialog .actions button.primary { background: var(--accent); border-color: var(--accent); color: white; }
-  dialog .msg { color: var(--bad); font-size: 14px; min-height: 18px; margin-top: 12px; }
-  @media (max-width: 900px) {
-    header, main { padding: 16px; }
-    .training, .stats, .results, .coefs { grid-column: span 12; }
+  .bar-row.fed .v { color: var(--good); font-weight: 700; }
+  .lift { margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .lift b { color: var(--good); }
+  .match-big { font: 700 34px var(--mono); color: var(--good); line-height: 1.1; }
+  .match-l { color: var(--muted); font-size: 13px; margin: 4px 0 12px; }
+  details { font-size: 12.5px; }
+  summary { cursor: pointer; color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 8px; }
+  th, td { text-align: right; padding: 4px 4px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 11.5px; }
+  th:first-child, td:first-child { text-align: left; font-family: inherit; }
+  th { color: var(--muted); font-weight: 500; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+  .stat .v { font: 600 19px var(--mono); }
+  .stat .l { font-size: 12px; color: var(--muted); }
+  .stat.wide { grid-column: span 2; }
+  .ratio { height: 8px; border-radius: 4px; background: var(--good-soft); overflow: hidden; margin-top: 6px; display: flex; }
+  .ratio div { background: var(--accent); }
+  .devices { margin-top: 14px; font-size: 12px; color: var(--muted); }
+  .devices div { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+  .devices span:first-child { text-transform: capitalize; }
+  .devices span:last-child { font-family: var(--mono); color: var(--text); }
+  .r-foot { padding: 14px 22px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .r-foot .note { color: var(--dim); font-size: 12px; max-width: 640px; }
+
+  /* ---- join panel ---- */
+  .join-row { display: flex; gap: 14px; align-items: flex-start; }
+  .qr { width: 132px; height: 132px; flex: none; background: #fff; border-radius: 8px; padding: 4px; display: grid; place-items: center; }
+  .qr svg { width: 100%; height: 100%; display: block; }
+  .qr span { color: #333; font-size: 11px; text-align: center; }
+  .join-info { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .join-link { font: 12px var(--mono); color: var(--accent); word-break: break-all; text-decoration: none; }
+  .join-link:hover { text-decoration: underline; }
+  .join-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .mini { background: none; border: 1px solid var(--line-2); color: var(--text); border-radius: 6px; padding: 5px 10px; font: 13px system-ui; cursor: pointer; }
+  .mini:hover { border-color: var(--accent); }
+  .mini.add { border-color: var(--accent); color: var(--accent); align-self: flex-start; }
+  .join-count { color: var(--muted); font-size: 12.5px; }
+  .join-pending { color: var(--warn); font-size: 12px; }
+  .join-pending:empty { display: none; }
+
+  .empty-slot rect { fill: none; stroke: var(--line-2); stroke-width: 1.5; stroke-dasharray: 6 5; }
+  .empty-title { fill: var(--text); font-size: 17px; font-weight: 600; }
+  .empty-sub { fill: var(--muted); font-size: 13px; }
+  .laptop.offline { opacity: .4; }
+  .laptop.offline .screen { stroke: var(--bad); stroke-dasharray: 5 4; }
+  .laptop .kick { opacity: 0; cursor: pointer; transition: opacity .2s; }
+  .laptop .kick circle { fill: var(--panel-2); stroke: var(--line-2); }
+  .laptop .kick text { fill: var(--muted); font-size: 14px; }
+  body:not(.training) .laptop:hover .kick { opacity: 1; }
+  .laptop .kick:hover circle { stroke: var(--bad); }
+  .laptop .kick:hover text { fill: var(--bad); }
+
+  @media (max-width: 1100px) {
+    main { grid-template-columns: 1fr; }
+    aside { border-left: 0; border-top: 1px solid var(--line); }
+    .feed-wrap { max-height: 320px; }
+    .r-grid { grid-template-columns: 1fr; }
+    .r-card { border-right: 0; border-bottom: 1px solid var(--line); }
+  }
+  @media (max-width: 600px) {
+    header { padding: 12px 16px; }
+    .stage { padding: 12px 16px; }
   }
 </style>
+<script id="qrlib" async src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 </head>
 <body>
 <header>
-  <h1>One arthritis model, five states, no pooled data
-    <small>Federated logistic regression on the Distributive Compute Platform &middot; CDC BRFSS 2024</small></h1>
+  <h1>One arthritis model, many laptops, no pooled data
+    <small>Federated Newton logistic regression on the Distributive Compute Platform &middot; CDC BRFSS 2024</small></h1>
   <div class="toggle" role="group" aria-label="Run mode">
-    <button data-mode="dcp">DCP</button>
-    <button data-mode="local">Local simulation</button>
+    <button data-mode="dcp">DCP &middot; laptops</button>
+    <button data-mode="sim">Simulation</button>
   </div>
-  <button id="train">Train</button>
+  <button class="btn" id="train">Start training</button>
 </header>
+
 <main>
-  <section class="panel sites">
-    <h2>Sites: each state keeps its own data</h2>
-    <div class="site-grid" id="sites"></div>
-  </section>
+  <div class="stage">
+    <div class="phase"><span class="round" id="phaseRound">Ready</span><span class="text" id="phaseText">Each state's data lives on its own laptop. Press <b>Start training</b>.</span></div>
+    <svg id="diagram" viewBox="0 0 1000 610" preserveAspectRatio="xMidYMin meet" role="img" aria-label="Live diagram of the federated training system"></svg>
+    <div class="banner" id="banner"></div>
+  </div>
 
-  <section class="panel training">
-    <h2>Training loss per round</h2>
-    <svg id="chart" viewBox="0 0 640 280" width="100%" role="img" aria-label="Loss per round"></svg>
-    <div id="log"></div>
-  </section>
-
-  <section class="stats">
-    <div class="kv">
-      <div class="panel"><div class="big" id="round">0</div><div class="label">Round</div></div>
-      <div class="panel"><div class="big" id="status">Ready</div><div class="label">Status</div></div>
-      <div class="panel"><div class="big" id="rows">0</div><div class="label">Rows across all sites</div></div>
-      <div class="panel"><div class="big" id="moved">0</div><div class="label">Numbers sent per site per round</div></div>
-    </div>
-  </section>
-
-  <section class="panel results">
-    <h2>Test AUC: each state alone vs federated</h2>
-    <div id="bars"><div class="label">Results appear after training.</div></div>
-  </section>
-
-  <section class="panel coefs">
-    <h2>Federated vs pooled scikit-learn</h2>
-    <div id="coefs"><div class="label">Coefficients appear after training.</div></div>
-  </section>
+  <aside>
+    <section class="join">
+      <h2>Join with your laptop</h2>
+      <div class="join-row">
+        <div class="qr" id="qr" aria-label="QR code for the join link"></div>
+        <div class="join-info">
+          <a id="joinLink" class="join-link" target="_blank" rel="noopener"></a>
+          <div class="join-btns">
+            <button class="mini" id="joinCopy">Copy link</button>
+            <button class="mini" id="joinPick" hidden title="This computer has several network addresses; try the next one">Other address</button>
+          </div>
+          <div class="join-count" id="joinCount"></div>
+          <div class="join-pending" id="joinPending"></div>
+          <button class="mini add" id="simAdd" hidden>+ Add simulated laptop</button>
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2>Traffic</h2>
+      <div class="counters">
+        <div class="counter sent"><div class="v" id="cSent">0 B</div><div class="l">model numbers over the network</div></div>
+        <div class="counter kept"><div class="v" id="cKept">&mdash;</div><div class="l">rows read locally, never sent</div></div>
+        <div class="counter"><div class="v" id="cJobs">0</div><div class="l">DCP jobs</div></div>
+        <div class="counter"><div class="v" id="cLoss">&mdash;</div><div class="l">training loss</div></div>
+      </div>
+    </section>
+    <section class="weights">
+      <h2>Model weights the coordinator sends</h2>
+      <div id="weights"><div class="empty">Appear after round 0, when the laptops have reported their feature names.</div></div>
+    </section>
+    <section class="feed-wrap">
+      <h2>On the wire</h2>
+      <ul id="feed"></ul>
+    </section>
+  </aside>
 </main>
 
 <dialog id="pw">
@@ -128,142 +282,698 @@
     <label class="check" id="pwSameWrap"><input type="checkbox" id="pwSame"> Both keystores use the same password</label>
     <div class="msg" id="pwMsg"></div>
     <div class="actions">
-      <button type="button" id="pwCancel">Cancel</button>
-      <button type="submit" class="primary" id="pwGo">Unlock and train</button>
+      <button type="button" class="btn ghost" id="pwCancel">Cancel</button>
+      <button type="submit" class="btn" id="pwGo">Unlock and train</button>
     </div>
   </form>
 </dialog>
 
+<dialog id="results" aria-labelledby="rTitle">
+  <div class="r-head">
+    <div class="tick">&#10003;</div>
+    <div><h3 id="rTitle">Training complete</h3><p id="rSub"></p></div>
+  </div>
+  <div class="r-grid">
+    <div class="r-card">
+      <h4>Federated vs each state alone</h4>
+      <div class="sub" id="rAucSub">Test AUC on held-out rows (higher is better)</div>
+      <div id="rBars"></div>
+      <div class="lift" id="rLift"></div>
+    </div>
+    <div class="r-card">
+      <h4>Same model as pooling the data</h4>
+      <div class="sub">Compared with scikit-learn trained on all rows in one place</div>
+      <div class="match-big" id="rDiff">&mdash;</div>
+      <div class="match-l" id="rDiffL">largest coefficient difference</div>
+      <div class="match-l" id="rPooledAuc"></div>
+      <details><summary>Show coefficients</summary><div id="rCoefs"></div></details>
+    </div>
+    <div class="r-card">
+      <h4>Run stats</h4>
+      <div class="sub" id="rModeSub"></div>
+      <div class="stats-grid" id="rStats"></div>
+      <div class="devices" id="rDevices"></div>
+    </div>
+  </div>
+  <div class="r-foot">
+    <div class="note" id="rNote"></div>
+    <div class="actions" style="margin:0">
+      <button class="btn ghost" id="rClose">Close</button>
+      <button class="btn" id="rAgain">Train again</button>
+    </div>
+  </div>
+</dialog>
+
 <script>
 (function () {
-  var mode = 'dcp';
-  var losses = [];
-  var siteEls = {};
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
   var $ = function (id) { return document.getElementById(id); };
+  var svg = $('diagram');
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  function setMode(m) {
-    mode = m;
-    document.querySelectorAll('.toggle button').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === m); });
+  var FEATURE_LABELS = {
+    ageGroup: 'Age group', female: 'Female', bmi: 'BMI', currentSmoker: 'Current smoker', formerSmoker: 'Former smoker',
+    exercise: 'Exercises', diabetes: 'Diabetes', generalHealth: 'General health', education: 'Education', incomeGroup: 'Income group'
+  };
+
+  var mode = 'dcp';
+  var config = null;
+  var sites = [];          // [{ name, port }]
+  var L = {};              // per-site diagram elements and state
+  var queues = {};         // per-site animation chains
+  var gate = Promise.resolve();
+  var featureNames = null;
+  var counters = { sent: 0, jobs: 0, rows: 0, kept: 0 };
+  var maxRounds = 10;
+  var lastDone = null;
+
+  // ---------- helpers ----------
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
   }
-  document.querySelectorAll('.toggle button').forEach(function (b) { b.onclick = function () { setMode(b.dataset.mode); }; });
+  function txt(tag, attrs, text, parent) { var e = el(tag, attrs, parent); e.textContent = text; return e; }
+  function nice(name) { return name.replace(/-/g, ' '); }
+  function title(name) { return nice(name).replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
+  function fmtBytes(b) {
+    if (b < 1024) return Math.round(b) + ' B';
+    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1024 / 1024).toFixed(2) + ' MB';
+  }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function ease(t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  function dParams() { return featureNames ? featureNames.length + 1 : 11; }
+  function inboundNumbers(stage) {
+    var d = dParams();
+    return stage === 'stats' ? (featureNames ? featureNames.length * 2 + 3 : 23) : d + d * (d + 1) / 2 + 2;
+  }
 
-  function renderSites(sites) {
-    var grid = $('sites');
-    grid.innerHTML = '';
-    siteEls = {};
-    var total = 0;
-    sites.forEach(function (s) {
-      total += s.n;
-      var el = document.createElement('div');
-      el.className = 'site';
-      el.innerHTML = '<div class="name"></div><div class="rows"></div><div class="lock">Rows stay with this site\'s job</div><div class="status">Idle</div>';
-      el.querySelector('.name').textContent = s.name.replace('-', ' ');
-      el.querySelector('.rows').textContent = s.n.toLocaleString() + ' rows';
-      grid.appendChild(el);
-      siteEls[s.name] = el;
+  // ---------- diagram ----------
+  var COORD = { x: 500, y: 20, w: 340, h: 112 };
+  var SCHED = { x: 500, y: 222, w: 300, h: 60 };
+  var LAPTOP_TOP = 372;
+  var layer = {};
+
+  /** Laptop positions and size for any number of laptops: one row, shrinking past five. */
+  function layoutFor(n) {
+    var scale = n <= 5 ? 1 : Math.max(0.45, 5 / n);
+    var gap = n <= 1 ? 0 : Math.min(200, 820 / (n - 1));
+    return {
+      scale: scale,
+      x: function (k) { return 500 + (k - (n - 1) / 2) * gap; },
+      lane: function (k) { return 500 + (k - (n - 1) / 2) * (n <= 1 ? 0 : Math.min(58, 270 / (n - 1))); },
+      fan: function (k) { return 500 + (k - (n - 1) / 2) * (n <= 1 ? 0 : Math.min(34, 250 / (n - 1))); }
+    };
+  }
+
+  function buildDiagram(opts) {
+    opts = opts || {};
+    svg.innerHTML = '';
+    layer.links = el('g', {}, svg);
+    layer.nodes = el('g', {}, svg);
+    layer.packets = el('g', {}, svg);
+    L = {}; queues = {};
+    var lay = layoutFor(sites.length);
+
+    sites.forEach(function (s, k) {
+      var x = lay.x(k), sx = lay.fan(k), lx = lay.lane(k);
+      var y0 = SCHED.y + SCHED.h, y1 = LAPTOP_TOP;
+      var link = el('path', { d: 'M' + sx + ' ' + y0 + ' C' + sx + ' ' + (y0 + 50) + ' ' + x + ' ' + (y1 - 50) + ' ' + x + ' ' + y1, class: 'link' }, layer.links);
+      var downA = el('path', { d: 'M' + lx + ' ' + (COORD.y + COORD.h) + ' L' + lx + ' ' + SCHED.y, class: 'link lane' }, layer.links);
+      var up = el('path', { d: 'M' + x + ' ' + y1 + ' C' + x + ' ' + (y1 - 50) + ' ' + sx + ' ' + (y0 + 50) + ' ' + sx + ' ' + y0 +
+        ' L' + lx + ' ' + SCHED.y + ' L' + lx + ' ' + (COORD.y + COORD.h), fill: 'none', stroke: 'none' }, layer.links);
+      L[s.name] = { k: k, x: x, scale: lay.scale, link: link, up: up, downA: downA, down: link, round: -1, distributed: false, n: s.rows || null, p: s };
+      queues[s.name] = Promise.resolve();
     });
-    $('rows').textContent = total.toLocaleString();
-  }
 
-  function siteStatus(name, cls, text) {
-    var el = siteEls[name];
-    if (!el) return;
-    el.classList.remove('busy', 'done');
-    if (cls) el.classList.add(cls);
-    el.querySelector('.status').textContent = text;
-  }
+    // coordinator
+    var c = el('g', { class: 'coord' }, layer.nodes);
+    el('rect', { x: COORD.x - COORD.w / 2, y: COORD.y, width: COORD.w, height: COORD.h, rx: 12, class: 'node-box' }, c);
+    txt('text', { x: COORD.x - COORD.w / 2 + 18, y: COORD.y + 28, class: 'node-title' }, 'Coordinator', c);
+    txt('text', { x: COORD.x - COORD.w / 2 + 18, y: COORD.y + 46, class: 'node-sub' }, 'this laptop · holds no training rows', c);
+    layer.coordStatus = txt('text', { x: COORD.x - COORD.w / 2 + 18, y: COORD.y + 92, class: 'node-status' }, idleStatus(), c);
+    txt('text', { x: COORD.x + COORD.w / 2 - 18, y: COORD.y + 28, class: 'node-sub', 'text-anchor': 'end' }, 'weights β', c);
+    layer.wstrip = el('g', { class: 'wstrip' }, c);
+    layer.coord = c;
+    drawWeightStrip(null);
 
-  function drawChart() {
-    var svg = $('chart');
-    var W = 640, H = 280, L = 70, R = 20, T = 16, B = 36;
-    var maxRounds = Math.max(8, losses.length);
-    var html = '';
-    if (losses.length) {
-      var lo = Math.min.apply(null, losses), hi = Math.max.apply(null, losses);
-      var pad = (hi - lo) * 0.08 || 1;
-      lo -= pad; hi += pad;
-      var x = function (i) { return L + (i / (maxRounds - 1)) * (W - L - R); };
-      var y = function (v) { return T + (1 - (v - lo) / (hi - lo)) * (H - T - B); };
-      for (var g = 0; g <= 4; g++) {
-        var v = lo + (g / 4) * (hi - lo);
-        html += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="#2a3150"/>';
-        html += '<text x="' + (L - 8) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + Math.round(v).toLocaleString() + '</text>';
-      }
-      for (var r = 0; r < maxRounds; r++) html += '<text x="' + x(r) + '" y="' + (H - 12) + '" text-anchor="middle">' + (r + 1) + '</text>';
-      var pts = losses.map(function (v, i) { return x(i) + ',' + y(v); }).join(' ');
-      html += '<polyline points="' + pts + '" fill="none" stroke="#5b8cff" stroke-width="3" stroke-linejoin="round"/>';
-      losses.forEach(function (v, i) { html += '<circle cx="' + x(i) + '" cy="' + y(v) + '" r="5" fill="#5b8cff"/>'; });
-    } else {
-      html = '<text x="320" y="140" text-anchor="middle">Press Train to start</text>';
+    // scheduler
+    var s = el('g', { class: 'sched' }, layer.nodes);
+    el('rect', { x: SCHED.x - SCHED.w / 2, y: SCHED.y, width: SCHED.w, height: SCHED.h, rx: 30, class: 'node-box' }, s);
+    txt('text', { x: SCHED.x, y: SCHED.y + 26, class: 'node-title', 'text-anchor': 'middle' }, 'DCP scheduler', s);
+    layer.schedSub = txt('text', { x: SCHED.x, y: SCHED.y + 44, class: 'node-sub', 'text-anchor': 'middle' }, 'routes each job to its laptop’s compute group', s);
+    var badge = el('g', { class: 'sched-badge', opacity: 0, transform: 'translate(' + (SCHED.x + SCHED.w / 2 - 6) + ',' + (SCHED.y + 4) + ')' }, s);
+    el('circle', { r: 12 }, badge);
+    layer.badgeText = txt('text', { 'text-anchor': 'middle', y: 4 }, '0', badge);
+    layer.badge = badge;
+    layer.held = 0;
+
+    if (!sites.length) {
+      var e = el('g', { class: 'empty-slot' }, layer.nodes);
+      el('rect', { x: 290, y: LAPTOP_TOP + 10, width: 420, height: 120, rx: 14 }, e);
+      txt('text', { x: 500, y: LAPTOP_TOP + 62, 'text-anchor': 'middle', class: 'empty-title' }, mode === 'dcp' ? 'Waiting for laptops to join' : 'No simulated laptops yet', e);
+      txt('text', { x: 500, y: LAPTOP_TOP + 86, 'text-anchor': 'middle', class: 'empty-sub' }, mode === 'dcp' ? 'Scan the QR code or open the join link on another laptop' : 'Use “+ Add simulated laptop” in the join panel', e);
     }
-    svg.innerHTML = html;
+
+    sites.forEach(function (st) { drawLaptop(st, opts.appear && opts.appear.indexOf(st.name) >= 0); });
   }
 
-  function renderResults(e) {
-    var rows = e.localOnly.map(function (l) { return { name: l.site + ' alone', n: l.n, auc: l.auc, fed: false }; });
-    rows.push({ name: 'Federated', n: rows.reduce(function (a, r) { return a + r.n; }, 0), auc: e.federated.auc, fed: true });
-    var min = 0.5, max = Math.max.apply(null, rows.map(function (r) { return r.auc; })) + 0.02;
-    var bars = $('bars');
-    bars.innerHTML = '';
-    rows.forEach(function (r) {
-      var div = document.createElement('div');
-      div.className = 'bar-row' + (r.fed ? ' fed' : '');
-      div.innerHTML = '<div class="n"></div><div class="bar"><div></div></div><div>' + r.auc.toFixed(3) + '</div>';
-      div.querySelector('.n').textContent = r.name.replace('-', ' ');
-      bars.appendChild(div);
-      requestAnimationFrame(function () { div.querySelector('.bar > div').style.width = ((r.auc - min) / (max - min) * 100) + '%'; });
-    });
+  /** One laptop, drawn around (0, 0) = top centre of its screen, then placed and scaled. */
+  function drawLaptop(st, animateIn) {
+    var o = L[st.name];
+    var g = el('g', { class: 'laptop', transform: 'translate(' + o.x + ',' + LAPTOP_TOP + ') scale(' + o.scale + ')' }, layer.nodes);
+    el('rect', { x: -82, y: 0, width: 164, height: 104, rx: 9, class: 'screen' }, g);
+    el('rect', { x: -74, y: 8, width: 148, height: 86, rx: 4, class: 'display' }, g);
+    txt('text', { x: 0, y: 33, class: 'st-name', 'text-anchor': 'middle' }, nice(st.name), g);
+    o.dev = txt('text', { x: 0, y: 52, class: 'st-dev', 'text-anchor': 'middle' }, st.device || '', g);
+    o.status = txt('text', { x: 0, y: 78, class: 'st-status', 'text-anchor': 'middle' }, '', g);
+    el('path', { d: 'M-98 108 L98 108 L88 119 L-88 119 Z', class: 'base' }, g);
+    el('line', { x1: 0, y1: 119, x2: 0, y2: 150, class: 'loop' }, g);
+    txt('text', { x: 6, y: 139, class: 'loop-l' }, st.port ? 'localhost:' + st.port : 'in-process', g);
+    var cy = 152;
+    el('path', { d: 'M-26 ' + (cy + 6) + ' L-26 ' + (cy + 34) + ' A26 7 0 0 0 26 ' + (cy + 34) + ' L26 ' + (cy + 6), class: 'db' }, g);
+    el('ellipse', { cx: 0, cy: cy + 6, rx: 26, ry: 7, class: 'db' }, g);
+    var lk = el('g', { transform: 'translate(-6,' + (cy + 15) + ')' }, g);
+    el('rect', { x: 0, y: 6, width: 12, height: 9, rx: 2, fill: '#f5b942' }, lk);
+    el('path', { d: 'M2.5 6 V3.5 a3.5 3.5 0 0 1 7 0 V6', fill: 'none', stroke: '#f5b942', 'stroke-width': 1.6 }, lk);
+    o.rows = txt('text', { x: 0, y: cy + 58, class: 'db-l', 'text-anchor': 'middle' }, o.n ? o.n.toLocaleString() + ' rows' : 'local data', g);
+    txt('text', { x: 0, y: cy + 72, class: 'db-l2', 'text-anchor': 'middle' }, 'stays on this laptop', g);
+    // remove button (shown on hover while idle)
+    var x = el('g', { class: 'kick', transform: 'translate(70,-8)' }, g);
+    el('circle', { r: 10 }, x);
+    txt('text', { 'text-anchor': 'middle', y: 4 }, '×', x);
+    var title = el('title', {}, x); title.textContent = 'Remove ' + nice(st.name);
+    x.addEventListener('click', function () { if (!training) removeParticipant(st.id); });
+    o.g = g;
+    o.dbY = cy;
+    applyPresence(st.name);
+    if (animateIn) ripple(o);
+  }
 
-    var t = '<table><tr><th>Feature</th><th>Federated</th><th>scikit-learn</th><th>Difference</th></tr>';
-    var names = ['intercept'].concat(e.featureNames);
-    var fed = [e.intercept].concat(e.coefficients);
-    var ref = e.reference ? [e.reference.intercept].concat(e.reference.coefficients) : null;
-    var maxDiff = 0;
-    names.forEach(function (n, j) {
-      var diff = ref ? Math.abs(fed[j] - ref[j]) : NaN;
-      if (ref) maxDiff = Math.max(maxDiff, diff);
-      t += '<tr><td>' + n + '</td><td>' + fed[j].toFixed(6) + '</td><td>' + (ref ? ref[j].toFixed(6) : '-') + '</td><td>' + (ref ? diff.toExponential(1) : '-') + '</td></tr>';
+  /** Joined, worker starting, online, offline: from the participant record. */
+  function applyPresence(name) {
+    var o = L[name]; if (!o) return;
+    var p = o.p;
+    o.g.classList.remove('ghost', 'offline', 'online');
+    if (p.status === 'offline') {
+      o.g.classList.add('offline');
+      o.status.textContent = 'offline (no heartbeat)';
+    } else if (!p.simulated && !p.workerRunning) {
+      o.g.classList.add('ghost');
+      o.status.textContent = 'joined · worker starting';
+    } else {
+      o.g.classList.add('online');
+      o.link.classList.add('live');
+      if (!training) o.status.textContent = p.simulated ? 'simulated laptop' : 'worker ready';
+    }
+  }
+
+  function ripple(o) {
+    if (reduceMotion) return Promise.resolve();
+    var r = el('circle', { cx: 0, cy: 52, r: 20, class: 'ripple' }, o.g);
+    return tween(800, function (t) {
+      r.setAttribute('r', 20 + t * 110);
+      r.setAttribute('opacity', 1 - t);
+    }).then(function () { r.remove(); });
+  }
+
+  function drawWeightStrip(beta) {
+    var g = layer.wstrip; if (!g) return;
+    g.innerHTML = '';
+    var n = beta ? beta.length - 1 : 10;
+    var x0 = COORD.x + COORD.w / 2 - 18 - n * 13, mid = COORD.y + 84, h = 20;
+    var max = beta ? Math.max.apply(null, beta.slice(1).map(Math.abs).concat([1e-9])) : 1;
+    el('line', { x1: x0 - 3, x2: x0 + n * 13, y1: mid, y2: mid, stroke: '#34406a' }, g);
+    for (var j = 0; j < n; j++) {
+      var v = beta ? beta[j + 1] : 0;
+      var bh = Math.max(1.5, Math.abs(v) / max * h);
+      el('rect', { x: x0 + j * 13, y: v >= 0 ? mid - bh : mid, width: 9, height: bh, rx: 1.5, fill: beta ? (v >= 0 ? '#5b8cff' : '#ff8f8f') : '#34406a' }, g);
+    }
+  }
+
+  function setLaptop(name, cls, status) {
+    var o = L[name]; if (!o) return;
+    ['working', 'reading', 'sent', 'failed'].forEach(function (c) { o.g.classList.remove(c); });
+    if (cls) o.g.classList.add(cls);
+    if (status != null) o.status.textContent = status;
+  }
+
+  function tween(ms, step) {
+    if (reduceMotion) { step(1); return Promise.resolve(); }
+    return new Promise(function (resolve) {
+      var t0 = performance.now();
+      function frame(now) {
+        var t = Math.min(1, (now - t0) / ms);
+        step(t);
+        if (t < 1) requestAnimationFrame(frame); else resolve();
+      }
+      requestAnimationFrame(frame);
     });
-    t += '</table>';
-    if (ref) t += '<p class="match">Largest difference: ' + maxDiff.toExponential(1) + '. Same model as pooling all the data.</p>';
-    $('coefs').innerHTML = t;
+  }
+
+  function travel(path, label, cls, ms) {
+    var g = el('g', { class: 'packet ' + cls }, layer.packets);
+    var w = label.length * 6.9 + 14;
+    el('rect', { x: -w / 2, y: -10, width: w, height: 20 }, g);
+    txt('text', { 'text-anchor': 'middle', y: 4 }, label, g);
+    var len = path.getTotalLength();
+    return tween(ms, function (t) {
+      var p = path.getPointAtLength(len * ease(t));
+      g.setAttribute('transform', 'translate(' + p.x + ',' + p.y + ')');
+    }).then(function () { g.remove(); });
+  }
+
+  function localRead(name) {
+    var o = L[name];
+    var dots = [0, 1, 2].map(function () { return el('circle', { cx: 0, cy: o.dbY, r: 3.2, class: 'rowdot' }, o.g); });
+    return tween(650, function (t) {
+      dots.forEach(function (d, i) {
+        var tt = Math.max(0, Math.min(1, t * 1.6 - i * .3));
+        d.setAttribute('cy', o.dbY - tt * 34);
+        d.setAttribute('opacity', tt <= 0 || tt >= 1 ? 0 : 1);
+      });
+    }).then(function () { dots.forEach(function (d) { d.remove(); }); });
+  }
+
+  function setHeld(delta) {
+    layer.held = Math.max(0, layer.held + delta);
+    layer.badgeText.textContent = layer.held;
+    layer.badge.setAttribute('opacity', layer.held ? 1 : 0);
+  }
+
+  // ---------- side panel ----------
+  function feed(cls, icon, html) {
+    var li = document.createElement('li');
+    li.className = cls;
+    li.innerHTML = '<span class="i"></span><span class="b"></span>';
+    li.querySelector('.i').textContent = icon;
+    li.querySelector('.b').innerHTML = html;
+    var ul = $('feed');
+    ul.insertBefore(li, ul.firstChild);
+    while (ul.children.length > 80) ul.removeChild(ul.lastChild);
+  }
+  function esc(s) { var d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+
+  function updateCounters() {
+    $('cSent').textContent = fmtBytes(counters.sent);
+    $('cJobs').textContent = counters.jobs;
+    $('cKept').textContent = counters.rows ? counters.rows.toLocaleString() : '—';
+  }
+
+  function renderWeights(beta) {
+    if (!featureNames) return;
+    var box = $('weights');
+    if (!box.querySelector('.w')) {
+      box.innerHTML = '';
+      featureNames.forEach(function (f) {
+        var row = document.createElement('div');
+        row.className = 'w';
+        row.innerHTML = '<span class="n"></span><span class="track"><span class="fill"></span></span><span class="v">0</span>';
+        row.querySelector('.n').textContent = FEATURE_LABELS[f] || f;
+        box.appendChild(row);
+      });
+    }
+    if (!beta) return;
+    var w = beta.slice(1);
+    var max = Math.max.apply(null, w.map(Math.abs).concat([1e-9]));
+    box.querySelectorAll('.w').forEach(function (row, j) {
+      var v = w[j], frac = Math.abs(v) / max * 50;
+      var fill = row.querySelector('.fill');
+      fill.style.left = (v >= 0 ? 50 : 50 - frac) + '%';
+      fill.style.width = frac + '%';
+      fill.style.background = v >= 0 ? 'var(--accent)' : '#ff8f8f';
+      row.querySelector('.v').textContent = (v >= 0 ? '+' : '') + v.toFixed(3);
+    });
+  }
+
+  function phase(round, html) {
+    $('phaseRound').textContent = round;
+    $('phaseText').innerHTML = html;
+  }
+
+  // ---------- event choreography ----------
+  function enqueue(site, fn) {
+    queues[site] = queues[site].then(fn).catch(function (err) { console.error(err); });
+    return queues[site];
+  }
+  function afterAll(fn) {
+    var all = Promise.all(Object.keys(queues).map(function (k) { return queues[k]; }));
+    gate = all.then(fn).catch(function (err) { console.error(err); });
+    Object.keys(queues).forEach(function (k) { queues[k] = gate; });
+    return gate;
+  }
+  function stageLabel(e) { return e.stage === 'stats' ? 'Round 0' : 'Round ' + e.round; }
+
+  function siteEvent(e) {
+    var o = L[e.site]; if (!o) return;
+    var speed = mode === 'sim' ? 1 : 0.8;
+    if (e.event === 'deployed') {
+      enqueue(e.site, function () {
+        if (o.round !== e.round) { o.round = e.round; o.distributed = false; }
+        counters.sent += e.bytes || 0; counters.jobs += 1; updateCounters();
+        var what = e.stage === 'stats' ? 'request for counts and sums' : 'weights β (' + dParams() + ' numbers)';
+        feed('out', '→', '<b>' + esc(nice(e.site)) + '</b> ' + what + ' <code>' + fmtBytes(e.bytes || 0) + '</code>');
+        setLaptop(e.site, null, 'job queued at scheduler');
+        return travel(o.downA, e.stage === 'stats' ? 'stats?' : 'β·' + dParams(), 'out', 650 * speed).then(function () { setHeld(1); });
+      });
+    } else if (e.event === 'accepted') {
+      enqueue(e.site, function () {
+        feed('', '·', 'scheduler accepted <b>' + esc(nice(e.site)) + '</b> job <code>' + esc(String(e.jobId || '').slice(0, 14)) + '</code>');
+      });
+    } else if (e.event === 'distributed') {
+      enqueue(e.site, function () { return toLaptop(e, o, speed); });
+    } else if (e.event === 'result') {
+      enqueue(e.site, function () {
+        var pre = o.distributed ? Promise.resolve() : toLaptop(e, o, speed);
+        return pre.then(function () {
+          if (e.device) o.dev.textContent = e.device;
+          if (e.stage === 'stats' && e.n != null) {
+            o.n = e.n;
+            o.rows.textContent = e.n.toLocaleString() + ' rows';
+            counters.rows += e.n; counters.kept += e.sourceBytes || 0; updateCounters();
+          }
+          setLaptop(e.site, 'working', e.stage === 'stats' ? 'sending counts & sums' : 'sending gradient + Hessian');
+          counters.sent += e.bytes || 0; updateCounters();
+          var what = e.stage === 'stats' ? 'counts and sums (' + inboundNumbers('stats') + ' numbers)' : 'gradient, Hessian, loss (' + inboundNumbers('newton') + ' numbers)';
+          feed('in', '←', '<b>' + esc(nice(e.site)) + '</b> ' + what + ' <code>' + fmtBytes(e.bytes || 0) + '</code>' + (e.device ? ' from <code>' + esc(e.device) + '</code>' : ''));
+          return travel(o.up, e.stage === 'stats' ? 'Σ·' + inboundNumbers('stats') : '∇H·' + inboundNumbers('newton'), 'in', 1000 * speed);
+        }).then(function () { setLaptop(e.site, 'sent', stageLabel(e) + ' sent ✓'); });
+      });
+    } else if (e.event === 'retry') {
+      enqueue(e.site, function () {
+        setLaptop(e.site, 'failed', 'retry ' + e.attempt);
+        feed('err', '!', '<b>' + esc(nice(e.site)) + '</b> attempt failed, redeploying: ' + esc(e.error));
+        if (layer.held) setHeld(-1);
+      });
+    }
+  }
+
+  function toLaptop(e, o, speed) {
+    o.distributed = true;
+    if (layer.held) setHeld(-1);
+    return travel(o.down, e.stage === 'stats' ? 'stats?' : 'β·' + dParams(), 'out', 750 * speed)
+      .then(function () {
+        setLaptop(e.site, 'reading', 'reading rows locally');
+        var where = o.p.port ? 'from <code>localhost:' + esc(o.p.port) + '</code>' : 'locally';
+        feed('local', '↻', '<b>' + esc(nice(e.site)) + '</b> worker read ' + (o.n ? o.n.toLocaleString() + ' rows' : 'its rows') + ' ' + where + ', not sent');
+        return localRead(e.site);
+      })
+      .then(function () {
+        setLaptop(e.site, 'working', e.stage === 'stats' ? 'counting rows & classes' : 'computing gradient + Hessian');
+        return sleep(250);
+      });
   }
 
   function handle(e) {
-    if (e.type === 'start') {
-      losses = []; drawChart();
-      renderSites(e.sites);
-      $('round').textContent = '0';
-      $('status').textContent = e.mode === 'dcp' ? 'DCP' : 'Local';
-      $('log').textContent = 'Round 0: collecting summary statistics from each site';
-      $('bars').innerHTML = '<div class="label">Results appear after training.</div>';
-      $('coefs').innerHTML = '<div class="label">Coefficients appear after training.</div>';
+    if (e.type === 'participant') {
+      participantEvent(e);
+    } else if (e.type === 'idle') {
+      afterAll(function () { training = false; document.body.classList.remove('training'); renderJoin(); if (pendingLayout) relayout(); });
+    } else if (e.type === 'start') {
+      $('results').open && $('results').close();
+      training = true;
+      document.body.classList.add('training');
+      pendingLayout = false;
+      setMode(e.mode, true);
+      sites = e.sites.map(function (s) { return participantById(s.id) || s; });
+      maxRounds = e.maxRounds || 10;
+      featureNames = null;
+      counters = { sent: 0, jobs: 0, rows: 0, kept: 0 };
+      updateCounters();
+      $('cLoss').textContent = '—';
+      $('feed').innerHTML = '';
+      $('weights').innerHTML = '<div class="empty">Appear after round 0, when the laptops have reported their feature names.</div>';
+      gate = Promise.resolve();
+      buildDiagram();
+      layer.coordStatus.textContent = 'round 0 · asking for summary stats';
+      phase('Round 0', 'The coordinator asks each laptop for <b>row counts, sums and class counts</b>, to standardize features globally. No rows are requested.');
+      sites.forEach(function (s) { setLaptop(s.name, null, 'waiting for job'); });
+      feed('coord', '◆', (e.mode === 'dcp' ? 'DCP run' : 'Simulation') + ' started with ' + sites.length + ' laptops');
+    } else if (e.type === 'cost') {
+      feed('coord', '◆', 'Price ' + e.dccPerSlice + ' DCC per job: about ' + e.typical + ' DCC, at most ' + e.ceiling + ' DCC');
     } else if (e.type === 'site') {
-      var label = e.stage === 'stats' ? 'Round 0 (stats)' : 'Round ' + e.round;
-      if (e.event === 'deployed') siteStatus(e.site, 'busy', label + ': job deployed');
-      else if (e.event === 'accepted') siteStatus(e.site, 'busy', label + ': running on DCP');
-      else if (e.event === 'result') siteStatus(e.site, 'done', label + ': result in' + (e.ms ? ' (' + (e.ms / 1000).toFixed(1) + ' s)' : ''));
-      else if (e.event === 'retry') siteStatus(e.site, 'busy', label + ': retry ' + e.attempt);
+      siteEvent(e);
     } else if (e.type === 'stats') {
-      var d = e.featureNames.length + 1;
-      $('moved').textContent = (d + d * (d + 1) / 2 + 2).toString();
-      $('log').textContent = 'Round 0 done: ' + e.N.toLocaleString() + ' rows, ' + e.featureNames.length + ' features' + (e.warnings.length ? ' (' + e.warnings.length + ' warnings)' : '');
+      afterAll(function () {
+        featureNames = e.featureNames;
+        layer.coord.classList.add('busy');
+        layer.coordStatus.textContent = 'combining stats → global mean & std';
+        feed('coord', '◆', 'Coordinator combined ' + e.N.toLocaleString() + ' rows’ statistics from ' + e.sites.length + ' laptops' + (e.warnings.length ? ' (' + e.warnings.length + ' warnings)' : ''));
+        renderWeights(null);
+        return sleep(900).then(function () {
+          layer.coord.classList.remove('busy');
+          layer.coordStatus.textContent = 'round 1 · sending weights';
+          phase('Round 1', 'The coordinator sends the current <b>weights β</b>. Each laptop computes the <b>gradient and Hessian</b> on its own rows and sends back only those.');
+        });
+      });
     } else if (e.type === 'round') {
-      losses.push(e.loss); drawChart();
-      $('round').textContent = e.round;
-      $('log').textContent = 'Round ' + e.round + ': loss ' + e.loss.toFixed(2) + ', largest step ' + e.maxStep.toExponential(1) + ', ' + (e.durationMs / 1000).toFixed(1) + ' s';
+      afterAll(function () {
+        layer.coord.classList.add('busy');
+        layer.coordStatus.textContent = 'summing ' + sites.length + ' Hessians → Newton step';
+        return sleep(500).then(function () {
+          drawWeightStrip(e.betaNext || e.beta);
+          renderWeights(e.betaNext || e.beta);
+          $('cLoss').textContent = Math.round(e.loss).toLocaleString();
+          feed('coord', '◆', 'Newton step ' + e.round + ': loss ' + e.loss.toFixed(2) + (e.rejected ? ' (step rejected, more damping)' : '') + ', largest change ' + e.maxStep.toExponential(1));
+          return sleep(500);
+        }).then(function () {
+          layer.coord.classList.remove('busy');
+          if (e.converged) {
+            layer.coordStatus.textContent = 'converged after ' + e.round + ' rounds';
+            phase('Done', 'Converged: the weights stopped changing. <b>Scoring the model</b>…');
+          } else {
+            layer.coordStatus.textContent = 'round ' + (e.round + 1) + ' · sending weights';
+            phase('Round ' + (e.round + 1), 'New weights go out. Each laptop recomputes its <b>gradient and Hessian</b> at the new weights.');
+          }
+        });
+      });
     } else if (e.type === 'done') {
-      $('status').textContent = e.converged ? 'Done' : 'Stopped';
-      $('log').textContent = 'Converged in ' + e.rounds + ' rounds, ' + (e.durationMs / 1000).toFixed(1) + ' s total';
-      renderResults(e);
-      $('train').disabled = false;
+      lastDone = e;
+      afterAll(function () {
+        phase('Done', 'Converged in <b>' + e.rounds + ' rounds</b>. Training rows never left the laptops.');
+        layer.coordStatus.textContent = 'done · model ready';
+        drawWeightStrip([e.intercept].concat(e.coefficients.map(function (c, j) { return c; })));
+        return sleep(700).then(function () { showResults(e); $('train').disabled = false; });
+      });
     } else if (e.type === 'error') {
-      $('status').textContent = 'Error';
-      $('log').innerHTML = '';
-      var span = document.createElement('span'); span.className = 'err'; span.textContent = e.message;
-      $('log').appendChild(span);
-      $('train').disabled = false;
+      afterAll(function () {
+        phase('Stopped', '<span style="color:var(--bad)">' + esc(e.message) + '</span>');
+        feed('err', '!', esc(e.message));
+        layer.coord && layer.coord.classList.remove('busy');
+        $('train').disabled = false;
+      });
     }
+  }
+
+  // ---------- participants (laptops joining and leaving) ----------
+  var participants = [];   // everyone the coordinator knows, both modes
+  var training = false;
+  var pendingLayout = false;
+  var minParticipants = 2;
+
+  function participantById(id) {
+    for (var i = 0; i < participants.length; i++) if (participants[i].id === id) return participants[i];
+    return null;
+  }
+  function modeParticipants() {
+    return participants.filter(function (p) { return p.simulated === (mode === 'sim'); });
+  }
+
+  /** Redraw the laptops for the current mode. New names get the join ripple. */
+  function relayout(appearNames) {
+    pendingLayout = false;
+    sites = modeParticipants();
+    buildDiagram({ appear: appearNames || [] });
+    updateReady();
+    renderJoin();
+  }
+
+  function updateReady() {
+    if (training) return;
+    var online = sites.filter(function (p) { return p.status === 'online'; }).length;
+    phase('Ready', online < minParticipants
+      ? (mode === 'dcp' ? 'Waiting for laptops to join. Each one brings its own data; at least <b>' + minParticipants + '</b> must be online.' : 'Add at least <b>' + minParticipants + '</b> simulated laptops.')
+      : '<b>' + online + ' laptops</b> ready, each holding its own data. Press <b>Start training</b>.');
+  }
+
+  function participantEvent(e) {
+    var p = e.participant;
+    var existing = participantById(p.id);
+    if (e.action === 'left') participants = participants.filter(function (x) { return x.id !== p.id; });
+    else if (existing) participants[participants.indexOf(existing)] = p;
+    else participants.push(p);
+
+    var inMode = p.simulated === (mode === 'sim');
+    if (inMode) {
+      var verb = { joined: 'joined', left: 'left', offline: 'went offline', updated: null }[e.action];
+      if (verb) feed(e.action === 'joined' ? 'in' : 'err', e.action === 'joined' ? '+' : '−',
+        '<b>' + esc(nice(p.name)) + '</b> ' + verb + (p.simulated ? '' : ' <code>' + esc(p.device) + '</code>') + (e.action === 'joined' ? ' with ' + p.rows.toLocaleString() + ' rows (kept on the laptop)' : ''));
+    }
+    if (!inMode) { renderJoin(); return; }
+    if (training) {
+      // Mid-run: keep the diagram stable. Update the node in place if it is in this run.
+      var o = L[p.name];
+      if (o && o.p.id === p.id) { o.p = p; if (e.action !== 'left') applyPresence(p.name); else setLaptop(p.name, 'failed', 'left the session'); }
+      if (e.action === 'joined' || e.action === 'left') pendingLayout = true;
+      renderJoin();
+      return;
+    }
+    if (e.action === 'updated' || e.action === 'offline') {
+      var n = L[p.name];
+      if (n && n.p.id === p.id) {
+        n.p = p;
+        sites = modeParticipants();
+        applyPresence(p.name); updateReady(); renderJoin(); return;
+      }
+    }
+    relayout(e.action === 'joined' ? [p.name] : []);
+  }
+
+  function removeParticipant(id) {
+    fetch('/api/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id }) });
+  }
+
+  // ---------- join panel ----------
+  var joinIndex = 0;
+  function renderJoin() {
+    if (!config) return;
+    var urls = config.joinUrls || [];
+    var url = urls[Math.min(joinIndex, urls.length - 1)] || '';
+    $('joinLink').textContent = url.replace(/^https?:\/\//, '');
+    $('joinLink').href = url;
+    $('joinPick').hidden = urls.length < 2;
+    var qr = $('qr');
+    if (window.qrcode && url && qr.dataset.url !== url) {
+      var q = window.qrcode(0, 'M');
+      q.addData(url);
+      q.make();
+      qr.innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+      qr.dataset.url = url;
+    } else if (!window.qrcode) {
+      qr.innerHTML = '<span>QR needs internet<br>use the link</span>';
+    }
+    var online = modeParticipants().filter(function (p) { return p.status === 'online'; }).length;
+    var s = config.slots || { total: 0, used: 0 };
+    var real = participants.filter(function (p) { return !p.simulated; }).length;
+    $('joinCount').textContent = mode === 'dcp'
+      ? real + ' joined' + (s.total ? ' · ' + Math.max(0, s.total - s.used) + ' of ' + s.total + ' compute groups free' : s.shared ? ' · shared compute group' : ' · no compute groups set up')
+      : online + ' simulated laptop' + (online === 1 ? '' : 's');
+    $('simAdd').hidden = mode !== 'sim';
+    $('joinPending').textContent = training && pendingLayout ? 'Changes apply after this run' : '';
+    $('train').disabled = training || modeParticipants().filter(function (p) { return p.status === 'online'; }).length < minParticipants;
+  }
+  $('joinCopy').onclick = function () {
+    var url = $('joinLink').href;
+    var done = function () { $('joinCopy').textContent = 'Copied'; setTimeout(function () { $('joinCopy').textContent = 'Copy link'; }, 1400); };
+    if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, done); else done();
+  };
+  $('joinPick').onclick = function () {
+    joinIndex = (joinIndex + 1) % (config.joinUrls || [1]).length;
+    $('qr').dataset.url = '';
+    renderJoin();
+  };
+  $('qrlib').addEventListener('load', function () { $('qr').dataset.url = ''; renderJoin(); });
+  $('simAdd').onclick = function () {
+    fetch('/api/sim/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  };
+
+  // ---------- results popup ----------
+  function showResults(e) {
+    $('rTitle').textContent = 'Training complete: ' + (e.converged ? 'converged in ' + e.rounds + ' rounds' : 'stopped after ' + e.rounds + ' rounds');
+    $('rSub').textContent = (e.mode === 'dcp' ? 'Run on DCP across ' : 'Simulated run across ') + sites.length + ' laptops in ' + (e.durationMs / 1000).toFixed(1) + ' s. No training row left its laptop.';
+    $('rAucSub').textContent = 'Test AUC on ' + (e.testRows || 0).toLocaleString() + ' held-out rows (higher is better)';
+
+    var rows = e.localOnly.map(function (l) { return { name: title(l.site), sub: l.n.toLocaleString(), auc: l.auc, fed: false }; });
+    rows.sort(function (a, b) { return b.auc - a.auc; });
+    rows.unshift({ name: 'Federated', sub: (e.run.rows || 0).toLocaleString(), auc: e.federated.auc, fed: true });
+    var min = Math.min.apply(null, rows.map(function (r) { return r.auc; })) - 0.03;
+    var max = Math.max.apply(null, rows.map(function (r) { return r.auc; })) + 0.005;
+    var bars = $('rBars'); bars.innerHTML = '';
+    rows.forEach(function (r, i) {
+      var div = document.createElement('div');
+      div.className = 'bar-row' + (r.fed ? ' fed' : '');
+      div.innerHTML = '<div class="n"></div><div class="bar"><div></div></div><div class="v"></div>';
+      div.querySelector('.n').textContent = r.fed ? 'Federated' : r.name + ' alone';
+      div.querySelector('.n').title = r.sub + ' training rows';
+      div.querySelector('.v').textContent = r.auc.toFixed(3);
+      bars.appendChild(div);
+      setTimeout(function () { div.querySelector('.bar > div').style.width = ((r.auc - min) / (max - min) * 100) + '%'; }, 150 + i * 90);
+    });
+    if (e.localOnly.length) {
+      var worst = e.localOnly.reduce(function (a, b) { return a.auc < b.auc ? a : b; });
+      $('rLift').innerHTML = 'Smallest state (' + esc(title(worst.site)) + ', ' + worst.n.toLocaleString() + ' rows) goes from ' + worst.auc.toFixed(3) + ' alone to <b>' + e.federated.auc.toFixed(3) + '</b> federated.';
+    } else {
+      $('rLift').textContent = 'Run node demo/baselines.js to add the each-state-alone comparison.';
+    }
+
+    if (e.reference) {
+      $('rDiff').textContent = e.reference.maxDiff.toExponential(1);
+      $('rDiffL').textContent = 'largest coefficient difference: the same model, to ' + (e.reference.maxDiff < 1e-6 ? 'better than 1e-6' : 'within ' + e.reference.maxDiff.toExponential(0));
+      $('rPooledAuc').innerHTML = e.reference.auc != null ? 'Test AUC: federated <b style="color:var(--text)">' + e.federated.auc.toFixed(4) + '</b>, pooled <b style="color:var(--text)">' + Number(e.reference.auc).toFixed(4) + '</b>' : '';
+      var names = ['intercept'].concat(e.featureNames);
+      var fed = [e.intercept].concat(e.coefficients);
+      var ref = [e.reference.intercept].concat(e.reference.coefficients);
+      var t = '<table><tr><th>Feature</th><th>Federated</th><th>Pooled</th></tr>';
+      names.forEach(function (n, j) { t += '<tr><td>' + esc(FEATURE_LABELS[n] || n) + '</td><td>' + fed[j].toFixed(5) + '</td><td>' + ref[j].toFixed(5) + '</td></tr>'; });
+      $('rCoefs').innerHTML = t + '</table>';
+    } else {
+      $('rDiff').innerHTML = '<span style="font-size:20px;color:var(--muted)">Not compared this run</span>';
+      $('rPooledAuc').textContent = '';
+      $('rDiffL').textContent = e.referenceNote || 'No scikit-learn reference for this run.';
+      $('rCoefs').innerHTML = '';
+    }
+
+    var r = e.run;
+    var moved = r.bytesSent + r.bytesReceived;
+    $('rModeSub').textContent = e.mode === 'dcp' ? 'DCP, one job per state per round' : 'Simulation on this laptop';
+    var stats = [
+      ['Rounds', e.rounds + ' + round 0'],
+      ['Wall time', (e.durationMs / 1000).toFixed(1) + ' s'],
+      ['DCP jobs', r.slices],
+      [e.mode === 'dcp' ? 'Cost (' + r.dccPerSlice + ' DCC per job)' : 'Cost on DCP at 1 DCC/job', (r.dccPerSlice ? r.slices * r.dccPerSlice : r.slices) + ' DCC'],
+      ['Model numbers sent', fmtBytes(r.bytesSent)],
+      ['Aggregates received', fmtBytes(r.bytesReceived)]
+    ];
+    var html = stats.map(function (s) { return '<div class="stat"><div class="v">' + esc(s[1]) + '</div><div class="l">' + esc(s[0]) + '</div></div>'; }).join('');
+    if (r.rawBytes) {
+      var pct = Math.min(100, moved / (moved + r.rawBytes) * 100);
+      html += '<div class="stat wide"><div class="v" style="color:var(--good)">' + r.rows.toLocaleString() + ' rows · ' + fmtBytes(r.rawBytes) + '</div>' +
+        '<div class="l">stayed on the laptops. Network carried ' + fmtBytes(moved) + ' of model numbers in total, independent of how many rows each state has.</div>' +
+        '<div class="ratio" title="network traffic vs raw data"><div style="width:' + pct + '%"></div></div></div>';
+    }
+    $('rStats').innerHTML = html;
+    var dev = Object.keys(r.devices || {});
+    $('rDevices').innerHTML = dev.length ? '<div style="margin-bottom:4px;color:var(--dim)">Computed on</div>' + dev.map(function (k) {
+      return '<div><span>' + esc(nice(k)) + '</span><span>' + esc(r.devices[k]) + '</span></div>';
+    }).join('') : '';
+    $('rNote').textContent = 'Each-state-alone scores were computed once, offline, by node demo/baselines.js. The federated model is scored live on the coordinator’s held-out test set.';
+    $('results').showModal();
+  }
+  $('rClose').onclick = function () { $('results').close(); };
+  $('rAgain').onclick = function () { $('results').close(); $('train').click(); };
+
+  // ---------- start / passwords ----------
+  function setMode(m, fromRun) {
+    var changed = mode !== m;
+    mode = m;
+    document.querySelectorAll('.toggle button').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === m); });
+    showProblem();
+    if (!fromRun && (changed || !layer.coord)) relayout();
+  }
+  document.querySelectorAll('.toggle button').forEach(function (b) {
+    b.onclick = function () { if (!training) setMode(b.dataset.mode); };
+  });
+  function idleStatus() {
+    return training ? 'starting' : 'idle · ' + sites.length + ' laptop' + (sites.length === 1 ? '' : 's');
+  }
+
+  function showProblem(msg) {
+    var p = msg || (mode === 'dcp' && config && config.dcpProblem);
+    $('banner').textContent = p || '';
+    $('banner').classList.toggle('show', Boolean(p));
   }
 
   function startTraining(body) {
@@ -279,12 +989,8 @@
   }
 
   var need = { identity: false, payment: false };
-  function syncSame() {
-    var same = $('pwSame').checked;
-    $('pwPayWrap').style.display = same || !need.payment ? 'none' : '';
-  }
+  function syncSame() { $('pwPayWrap').style.display = $('pwSame').checked || !need.payment ? 'none' : ''; }
   $('pwSame').onchange = syncSame;
-
   function askPasswords(n) {
     need = n;
     $('pwIdWrap').style.display = n.identity ? '' : 'none';
@@ -297,10 +1003,8 @@
     $('pw').showModal();
     (n.identity ? $('pwId') : $('pwPay')).focus();
   }
-
   $('pwCancel').onclick = function () { $('pw').close(); $('train').disabled = false; };
   $('pw').addEventListener('cancel', function () { $('train').disabled = false; });
-
   $('pwForm').onsubmit = function (ev) {
     ev.preventDefault();
     var idPw = $('pwId').value;
@@ -309,7 +1013,6 @@
     $('pwMsg').textContent = 'Unlocking...';
     startTraining({ identityPassword: idPw, paymentPassword: payPw }).then(function (r) {
       $('pwGo').disabled = false;
-      // Do not keep passwords in the page any longer than needed.
       $('pwId').value = ''; $('pwPay').value = '';
       if (r.ok) { $('pw').close(); return; }
       $('pwMsg').textContent = r.error || 'Could not unlock';
@@ -321,24 +1024,40 @@
     });
   };
 
+  function started(r) {
+    if (r.ok) { showProblem(''); return; }
+    $('train').disabled = false;
+    showProblem(r.error || 'Could not start');
+  }
+
   $('train').onclick = function () {
     $('train').disabled = true;
-    if (mode !== 'dcp') {
-      startTraining().then(function (r) { if (!r.ok) $('train').disabled = false; });
-      return;
-    }
+    if (mode !== 'dcp') return startTraining().then(started);
     fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
+      config = c;
+      if (c.dcpProblem) { showProblem(); $('train').disabled = false; return; }
       var n = c.dcpPasswords || { identity: false, payment: false };
       if (n.identity || n.payment) return askPasswords(n);
-      startTraining().then(function (r) { if (!r.ok) $('train').disabled = false; });
+      startTraining().then(started);
     });
   };
 
   fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
+    config = c;
+    participants = c.participants || [];
+    minParticipants = c.minParticipants || 2;
+    training = Boolean(c.running);
+    mode = null;
     setMode(c.defaultMode);
-    renderSites(c.sites);
-    drawChart();
   });
+  // Keep the compute-group count in the join panel current as laptops come and go.
+  setInterval(function () {
+    if (document.hidden) return;
+    fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
+      config.slots = c.slots; config.joinUrls = c.joinUrls; config.dcpProblem = c.dcpProblem;
+      renderJoin();
+    }).catch(function () {});
+  }, 5000);
   new EventSource('/events').onmessage = function (m) { handle(JSON.parse(m.data)); };
 })();
 </script>

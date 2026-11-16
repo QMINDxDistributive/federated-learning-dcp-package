@@ -1,0 +1,35 @@
+{
+  "note": "Each state trained alone, scored on test.json. Written by demo/baselines.js.",
+  "localOnly": [
+    {
+      "site": "alaska",
+      "n": 150,
+      "auc": 0.7057193699169163,
+      "accuracy": 0.686
+    },
+    {
+      "site": "florida",
+      "n": 1000,
+      "auc": 0.7765362974473364,
+      "accuracy": 0.7243333333333334
+    },
+    {
+      "site": "minnesota",
+      "n": 250,
+      "auc": 0.765434403939899,
+      "accuracy": 0.713
+    },
+    {
+      "site": "new-york",
+      "n": 3000,
+      "auc": 0.7779413275855587,
+      "accuracy": 0.728
+    },
+    {
+      "site": "washington",
+      "n": 400,
+      "auc": 0.7723026604343413,
+      "accuracy": 0.7223333333333334
+    }
+  ]
+}

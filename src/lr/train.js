@@ -65,6 +65,7 @@ async function train({ runner, hyperparameters = {}, onEvent = () => {} }) {
       rejected: u.rejected,
       converged: u.converged,
       beta: betaEvaluated,
+      betaNext: state.beta, // standardized weights after this round's update; sent in the next round
       durationMs: Date.now() - tr,
       siteLoss: results.map((r) => r.loss),
     });

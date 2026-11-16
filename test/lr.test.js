@@ -49,10 +49,26 @@ test('work function is self-contained (survives being re-created from its source
 test('site results contain only aggregates, never rows', () => {
   const data = { X: [[1, 2], [3, 4], [5, 7]], y: [0, 1, 1], featureNames: ['a', 'b'] };
   const r = workFunction(data, { stage: 'newton', beta: [0, 0, 0], mean: [3, 4], std: [1, 1], classWeights: [1, 1], fitIntercept: true });
-  assert.deepEqual(Object.keys(r).sort(), ['gradient', 'hessian', 'loss', 'n', 'stage']);
+  assert.deepEqual(Object.keys(r).sort(), ['device', 'gradient', 'hessian', 'loss', 'n', 'site', 'stage']);
   assert.equal(r.gradient.length, 3);
   assert.equal(r.hessian.length, 6);
   assert.ok(Math.abs(r.loss - 3 * Math.log(2)) < 1e-12);
+});
+
+test('remote data: work function accepts the site agent payload as JSON text or bytes', () => {
+  const payload = { X: [[1, 2], [3, 4], [5, 7]], y: [0, 1, 1], featureNames: ['a', 'b'], site: 'alaska', device: 'LAPTOP-1', sourceBytes: 99 };
+  const fromObject = workFunction(payload, { stage: 'stats', site: 'alaska' });
+  assert.deepEqual(workFunction(JSON.stringify(payload), { stage: 'stats', site: 'alaska' }), fromObject);
+  assert.deepEqual(workFunction(new TextEncoder().encode(JSON.stringify(payload)), { stage: 'stats', site: 'alaska' }), fromObject);
+  assert.equal(fromObject.device, 'LAPTOP-1');
+  assert.equal(fromObject.sourceBytes, 99);
+});
+
+test('remote data: a job that lands on the wrong laptop refuses to train', () => {
+  const payload = { X: [[1, 2]], y: [1], featureNames: ['a', 'b'], site: 'florida' };
+  assert.throws(() => workFunction(payload, { stage: 'stats', site: 'alaska' }), /Wrong device/);
+  const { validateResult } = require('../src/lr/coordinator');
+  assert.throws(() => validateResult({ stage: 'stats', site: 'florida', sum: [1], sumSq: [1] }, 'stats', { site: 'alaska' }), /florida/);
 });
 
 test('hyperparameter validation', () => {
@@ -104,4 +120,41 @@ test('federated Newton on BRFSS matches pooled scikit-learn to 1e-6', { skip: !f
   const test = JSON.parse(fs.readFileSync(path.join(SITES_DIR, 'test.json'), 'utf8'));
   const p = predictProba(model, test.X[0]);
   assert.ok(p > 0 && p < 1);
+});
+
+test('participants: join hands out one compute group per laptop and frees it on leave', () => {
+  const { createRegistry } = require('../demo/participants');
+  const events = [];
+  let t = 0;
+  const reg = createRegistry({
+    groups: { pool: [{ joinKey: 'g1', joinSecret: 's1' }, { joinKey: 'g2', joinSecret: 's2' }], shared: null },
+    featureNames: ['a', 'b'],
+    onChange: (action, p) => events.push([action, p.name]),
+    now: () => t,
+    token: 'tok',
+  });
+  const base = { token: 'tok', rows: 100, featureNames: ['a', 'b'], port: 7000, device: 'PC' };
+  assert.throws(() => reg.join({ ...base, token: 'old' }), /out of date/);
+  assert.throws(() => reg.join({ ...base, featureNames: ['b', 'a'] }), /features/);
+
+  const a = reg.join({ ...base, name: 'Alaska' });
+  const b = reg.join({ ...base, name: 'alaska' });
+  assert.equal(a.name, 'alaska');
+  assert.equal(b.name, 'alaska-2');
+  assert.deepEqual([a.computeGroup.joinKey, b.computeGroup.joinKey], ['g1', 'g2']);
+  assert.throws(() => reg.join({ ...base, name: 'c' }), /compute groups are taken/);
+  assert.ok(reg.list().every((p) => !('secret' in p) && typeof p.group === 'string'), 'secrets stay server-side');
+
+  assert.throws(() => reg.heartbeat({ id: a.id, secret: 'wrong' }), /Unknown participant/);
+  t = 20000;
+  reg.heartbeat({ id: b.id, secret: b.secret, workerRunning: true });
+  reg.sweep();
+  assert.deepEqual(reg.active(false).map((p) => p.name), ['alaska-2']);
+
+  reg.leave({ id: a.id, secret: a.secret });
+  assert.equal(reg.join({ ...base, name: 'c' }).computeGroup.joinKey, 'g1');
+  assert.deepEqual(events.map((e) => e[0]), ['joined', 'joined', 'updated', 'offline', 'left', 'joined']);
+
+  const sim = reg.join({ token: 'tok', simulated: true, name: 'florida', rows: 5, featureNames: ['a', 'b'] });
+  assert.equal(sim.computeGroup, null, 'simulated laptops do not use compute groups');
 });

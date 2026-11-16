@@ -8,15 +8,31 @@
  * defined outside it. The same function is called directly by the local runner and the tests,
  * so what we test is exactly what runs on DCP.
  *
- * sliceData: { X: number[][] (raw, unstandardized rows), y: (0|1)[], featureNames: string[] }
- *            In v0.1 the rows travel with the slice (decision 0001).
- * args:      { stage: 'stats' | 'newton', beta, mean, std, classWeights, fitIntercept }
+ * sliceData: { X: number[][] (raw, unstandardized rows), y: (0|1)[], featureNames: string[],
+ *              site?: string, device?: string, sourceBytes?: number }
+ *            Either the rows travel with the slice (decision 0001), or the slice is a remote data
+ *            URL on the site's own machine and the worker there fetches it (decision 0004). Remote
+ *            data may arrive as a JSON string or bytes, so it is parsed here if needed.
+ * args:      { stage: 'stats' | 'newton', site?, beta, mean, std, classWeights, fitIntercept }
+ *            args.site, when given, must match sliceData.site. This stops a worker on the wrong
+ *            machine from training on that machine's data under another site's name.
  *
- * Every result is an aggregate over all of the site's rows. No row-level data is returned.
+ * Every result is an aggregate over all of the site's rows, plus the site and device labels.
+ * No row-level data is returned.
  */
 function workFunction(sliceData, args) {
   // DCP provides a global progress(); elsewhere it does not exist.
   var reportProgress = typeof progress === 'function' ? progress : function () {};
+
+  if (sliceData && typeof sliceData !== 'string' && typeof sliceData.byteLength === 'number' && !sliceData.X) {
+    sliceData = new TextDecoder().decode(sliceData);
+  }
+  if (typeof sliceData === 'string') sliceData = JSON.parse(sliceData);
+  if (args.site && sliceData.site !== args.site) {
+    throw new Error('Wrong device: job for site "' + args.site + '" got data for site "' + sliceData.site + '"');
+  }
+  var site = sliceData.site || null;
+  var device = sliceData.device || null;
 
   var X = sliceData.X;
   var y = sliceData.y;
@@ -36,7 +52,10 @@ function workFunction(sliceData, args) {
       classCounts[y[i] === 1 ? 1 : 0] += 1;
     }
     reportProgress(1);
-    return { stage: 'stats', n: n, sum: sum, sumSq: sumSq, classCounts: classCounts, featureNames: sliceData.featureNames };
+    return {
+      stage: 'stats', n: n, sum: sum, sumSq: sumSq, classCounts: classCounts, featureNames: sliceData.featureNames,
+      site: site, device: device, sourceBytes: typeof sliceData.sourceBytes === 'number' ? sliceData.sourceBytes : null,
+    };
   }
 
   if (args.stage === 'newton') {
@@ -85,7 +104,7 @@ function workFunction(sliceData, args) {
       if (r % 500 === 0) reportProgress(r / n);
     }
     reportProgress(1);
-    return { stage: 'newton', n: n, gradient: gradient, hessian: hessian, loss: loss };
+    return { stage: 'newton', n: n, gradient: gradient, hessian: hessian, loss: loss, site: site, device: device };
   }
 
   throw new Error('Unknown or unsupported stage: ' + args.stage);

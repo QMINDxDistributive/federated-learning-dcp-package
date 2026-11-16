@@ -1,48 +1,151 @@
-# Showcase demo: federated arthritis model on DCP
+# Showcase demo: one arthritis model, many laptops, no pooled data
 
-Five US states each hold their own BRFSS 2024 survey rows. Federated Newton-style logistic
-regression trains one arthritis-risk model across them on DCP, and the result matches
-scikit-learn trained on all the rows pooled together.
+This computer is the **coordinator**. Any number of other laptops join by scanning a QR code or
+opening a link, and each one brings its own dataset. Federated Newton-style logistic
+regression trains one arthritis-risk model across them on DCP. Each laptop's rows are read only
+by the DCP worker on that laptop. Only model numbers (weights out; gradient, Hessian and loss
+back) cross the network.
+
+The dashboard is a live system view, with a join link and QR code always on screen:
+
+- Laptops appear in the diagram as they join and go grey if they drop off.
+- During training you can watch the weights go out and the aggregates come back, each laptop
+  read its own rows locally, and the weights change round by round.
+- A results popup at the end compares the federated model with each dataset alone and with
+  pooled scikit-learn, and summarizes the run.
 
 ## Run it
 
 ```sh
 npm install
 npm test               # includes the federated vs scikit-learn check (1e-6)
-npm run demo           # dashboard at http://localhost:3000 (pick DCP or Local in the page)
-npm run demo:dcp       # same, DCP selected by default
-node demo/run.js --cli # terminal only, local; add --dcp for DCP
-npm run dcp:hello      # DCP smoke test: one job per site, returns row counts
+npm run demo           # dashboard at http://localhost:3000 (this computer only)
+npm run demo:dcp       # same, DCP mode selected
+node demo/run.js --cli # terminal only: simulation with the five sample states
 ```
 
-DCP credentials ([setup guide](https://docs.dcp.dev/intro/getting-setup.html)): create an API key
-in the portal's Keys tab (purpose "Job Creation", linked to a funded bank account) and set it as
-`DCP_API_KEY`. Keystore files in `~/.dcp/` also work. To target a compute group, set
-`DCP_ATTACH_KEY` and `DCP_ATTACH_SECRET` (jobs attach to a group; workers join it). Never commit keys or keystores.
+**Simulation** mode: press **+ Add simulated laptop** in the join panel as many times as you
+like, then **Start training**. Everything runs on this computer with the same events and
+pacing as a real run. Use it to rehearse.
+
+## DCP across laptops (decision 0004)
+
+```
+ coordinator (this computer)          DCP scheduler                    joined laptop (any number)
+ npm run demo  ── job: β + URL ──▶  routes to that laptop's  ──▶  DCP worker (in that laptop's
+               ◀── ∇, H, loss ───   compute group           ◀──   compute group only)
+      ▲                                                             │ fetch localhost:<port>
+      └──────── join, heartbeats (name, row count, no rows) ──────  fl-agent.js (rows stay here)
+```
+
+### One-time setup on the coordinator
+
+1. **Compute groups.** Each laptop that joins needs its own DCP compute group, so its jobs can
+   only run on it. Create a pool of them in the DCP portal (dcp-client has no API to create
+   groups), one per laptop you expect, plus spares. Copy `demo/devices.example.json` to
+   `demo/devices.json` (gitignored) and list them. The pool size is the most laptops that can
+   join at once; add groups to allow more. As a fallback, `DCP_ATTACH_KEY` and
+   `DCP_ATTACH_SECRET` give every laptop one shared group. That works, but a job may land on
+   the wrong laptop first and be retried.
+2. **Credentials.** Set `DCP_API_KEY`, or put the keystores in `~/.dcp/` (the dashboard asks
+   for their passwords). See the [setup guide](https://docs.dcp.dev/intro/getting-setup.html).
+   Never commit keys or keystores.
+3. **Network.** The laptops must be able to reach this computer, e.g. on the same Wi-Fi. The
+   server listens on all interfaces (`HOST`, default `0.0.0.0`). Windows may ask whether to
+   allow Node through the firewall; allow it on private networks. If this computer has several
+   network addresses, use **Other address** in the join panel. `PUBLIC_URL` overrides the
+   address entirely, e.g. for a tunnel.
+
+### Joining from a laptop
+
+1. Scan the QR code or open the join link.
+2. Pick the data: a demo sample state, or your own JSON file.
+3. Run the one command the page shows (Node.js 20+ needed). For example, on Windows:
+
+   ```powershell
+   irm http://192.168.2.54:3000/join/agent.js -OutFile fl-agent.js; node fl-agent.js http://192.168.2.54:3000 <token> --sample florida
+   ```
+
+The agent (`demo/agent.js`, a single file using only Node built-ins) then:
+
+- serves the data at `http://localhost:<free port>/data.json`, bound to 127.0.0.1, so no other
+  machine can read it;
+- registers with the coordinator, sending a name, the row count and the feature names, never
+  the rows. The coordinator rejects data whose features don't match the model;
+- gets one compute group from the pool;
+- starts a DCP evaluator and worker (`npx -p dcp-worker@4.7.0 ...`) that joins only that group
+  (`--join`, `--no-global`) and may only fetch its own port (`--allow-origin`);
+- sends a heartbeat every 5 seconds. Ctrl+C leaves the session and frees the group. A laptop
+  that stops sending heartbeats shows as offline after about 15 seconds.
+
+`--sample <state>` is demo setup: the first run saves that state's sample file into the folder,
+and later runs read it from there. Do it before the presentation. In real use, pass
+`--data <file>` instead.
+
+The evaluator runs in Node mode (`dcp-evaluator-start -t node`), which `dcp-worker` warns is not
+for production. That is fine for a demo; for anything else, install the native evaluator or
+the Distributive screensaver.
+
+### Training
+
+Press **Start training** once at least two laptops are online. The run uses the laptops online
+at that moment. Laptops that join mid-run appear when it finishes. The coordinator never opens a
+laptop's data. Each round it sends one job per laptop, carrying the current weights and the
+laptop's localhost URL as DCP remote data, attached to that laptop's compute group.
+
+How the system protects the data:
+
+- Each data server only answers on its own laptop, so a job can only read rows from the
+  machine it lands on.
+- Compute groups make sure each job lands on the right machine.
+- If a job still reaches the wrong laptop, the work function's site check refuses to train on
+  that laptop's data, and the job is retried.
+
+## Network exposure
+
+| Reachable from | Paths |
+|---|---|
+| This computer only | `/` dashboard, `/config`, `/events`, training and simulation controls |
+| The LAN | `/join` page, `/join/agent.js`, `/join/samples` and `/join/sample/*` (need the session token), `/api/join`, `/api/heartbeat`, `/api/leave` |
+
+The join token changes every time the coordinator restarts, so old links stop working. Compute
+group secrets travel to the agents over plain HTTP on the LAN. That is acceptable for a
+classroom demo, but not for real data.
 
 ## Rebuild the data (optional)
 
-The per-state files in `demo/data/sites/` are committed. To rebuild them:
+The sample files in `demo/data/sites/` and `demo/data/baselines.json` are committed. To
+rebuild them:
 
 ```sh
 python -m venv demo/.venv && demo/.venv/Scripts/pip install pandas numpy scikit-learn
 curl -O https://www.cdc.gov/brfss/annual_data/2024/files/LLCP2024XPT.zip   # unzip into demo/data/raw/
 demo/.venv/Scripts/python tools/brfss/prepare.py demo/data/raw/LLCP2024.XPT demo/data/sites
 demo/.venv/Scripts/python tools/reference/sklearn_reference.py demo/data/sites test/fixtures/brfss-reference.json
+npm run demo:baselines   # "each state alone" scores for the results popup
 ```
 
 Python is test and data tooling only. The package and the DCP work function have no Python
-and no npm dependencies other than `dcp-client`.
+and no npm dependencies other than `dcp-client`. The dashboard loads a QR code library from a
+CDN; without internet it shows the link only.
 
 ## What talks to what
 
-- `src/lr/workFunction.js` runs on DCP workers. Self-contained by design (it is shipped as
-  source). Returns only aggregates: gradient, Hessian, loss and row count.
-- `src/lr/coordinator.js` round 0 standardization and checks, then the Newton update.
-- `src/lr/train.js` the training loop (Alex's `trainModelOnDcp`).
-- `src/runners/local.js` and `src/runners/dcp.js` the same loop, in-process or one DCP job
-  per site per round.
+- `src/lr/workFunction.js` runs on DCP workers. It is self-contained by design, because it is
+  shipped as source. It returns only aggregates (gradient, Hessian, loss, row count) plus site
+  and device labels.
+- `src/lr/coordinator.js` handles round 0 standardization and checks, then the Newton update.
+- `src/lr/train.js` is the training loop.
+- `src/runners/dcp.js` deploys one DCP job per site per round. Each site either has `dataUrl`
+  (remote data, decision 0004) or `data` (rows in the slice, decision 0001). `withSites()`
+  reuses one unlocked DCP session for a changing set of laptops.
+- `demo/agent.js` is the per-laptop data server, registration and worker launcher.
+- `demo/participants.js` tracks who joined: join tokens, the compute-group pool, heartbeats
+  and feature checks.
+- `demo/run.js` is the coordinator server. `demo/dashboard/index.html` is the live view, and
+  `demo/dashboard/join.html` is the join page.
 
-In v0.1 each site's rows travel inside its DCP slice (decision 0001), so do not say "the data
-never leaves the state". Say the algorithm only needs aggregates, and v0.2 remote data will
-keep rows at each site.
+What to say: in DCP mode, training rows never leave their laptop. The coordinator holds only a
+held-out test set (`test.json`) to score the final model. The "each state alone" scores were
+computed once, offline, by `demo/baselines.js`, and appear for laptops using a sample state.
+The scikit-learn comparison only applies when the five sample states each take part once.

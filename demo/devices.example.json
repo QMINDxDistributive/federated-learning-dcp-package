@@ -1,0 +1,10 @@
+{
+  "_comment": "Copy to demo/devices.json (gitignored). A pool of DCP compute groups, created in the DCP portal. Each laptop that joins gets one; add more groups to allow more laptops.",
+  "computeGroups": [
+    { "joinKey": "TODO", "joinSecret": "TODO" },
+    { "joinKey": "TODO", "joinSecret": "TODO" },
+    { "joinKey": "TODO", "joinSecret": "TODO" },
+    { "joinKey": "TODO", "joinSecret": "TODO" },
+    { "joinKey": "TODO", "joinSecret": "TODO" }
+  ]
+}

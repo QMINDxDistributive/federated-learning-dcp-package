@@ -185,6 +185,7 @@ function addDiag(M, v) {
 function validateResult(result, stage, expected) {
   const bad = (m) => new Error(`Invalid ${stage} result from site "${expected.site}": ${m}`);
   if (!result || result.stage !== stage) throw bad('wrong stage');
+  if (result.site && result.site !== expected.site) throw bad(`computed on data for site "${result.site}"`);
   const finite = (arr) => Array.isArray(arr) && arr.every(Number.isFinite);
   if (stage === 'stats') {
     if (!finite(result.sum) || !finite(result.sumSq)) throw bad('non-finite sums');

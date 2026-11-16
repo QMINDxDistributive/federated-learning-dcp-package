@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join Federated Training</title>
+<style>
+  :root {
+    --bg: #0b0f1a; --panel: #121829; --panel-2: #182036; --line: #263052; --line-2: #34406a;
+    --text: #e8ecf8; --muted: #8a93b2; --dim: #5d6688; --accent: #5b8cff; --good: #3ecf8e; --warn: #f5b942; --bad: #ff6b6b;
+    --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.01em; }
+  .lede { color: var(--muted); margin: 0 0 28px; }
+  .step { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 14px; }
+  .step h2 { font-size: 15px; margin: 0 0 10px; display: flex; gap: 10px; align-items: center; }
+  .step h2 .n { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 13px; flex: none; }
+  .step p { color: var(--muted); font-size: 14px; margin: 6px 0; }
+  .choice { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .choice label { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 14px; }
+  .choice label:has(input:checked) { border-color: var(--accent); background: rgba(91, 140, 255, .12); }
+  .choice small { color: var(--dim); }
+  input[type=text] { width: 100%; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg); color: var(--text); font: 14px var(--mono); }
+  .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+  .tabs button { background: none; border: 1px solid var(--line-2); color: var(--muted); border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  .tabs button.on { color: var(--text); background: var(--line); }
+  .cmd { position: relative; background: #070a12; border: 1px solid var(--line); border-radius: 8px; padding: 14px 14px 14px 14px; font: 13px/1.6 var(--mono); color: #cfe0ff; word-break: break-all; white-space: pre-wrap; }
+  .copy { margin-top: 10px; background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 9px 18px; font: 600 14px system-ui; cursor: pointer; }
+  .note { font-size: 13px; color: var(--dim); }
+  .demo { border-left: 3px solid var(--warn); padding-left: 10px; }
+  .err { color: var(--bad); }
+  code { font-family: var(--mono); font-size: 13px; color: #cfe0ff; }
+  ul { margin: 6px 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Join the federated training</h1>
+  <p class="lede">Your laptop becomes one of the sites. Your rows stay on this laptop; only model numbers go back to the coordinator.</p>
+
+  <div class="step">
+    <h2><span class="n">1</span>Choose the data this laptop holds</h2>
+    <div class="choice">
+      <label><input type="radio" name="src" value="sample" checked> Demo sample state</label>
+      <label><input type="radio" name="src" value="file"> My own file</label>
+    </div>
+    <div id="sampleBox">
+      <div class="choice" id="samples"></div>
+      <p class="demo note">Demo setup: the first run saves this state's sample file on your laptop, and later runs read it from there. Do this before the presentation.</p>
+    </div>
+    <div id="fileBox" hidden>
+      <input type="text" id="file" value="data.json" aria-label="Path to your data file" spellcheck="false">
+      <p class="note">A JSON file with <code>featureNames</code>, <code>X</code> (rows) and <code>y</code> (0/1 labels), using the same features as the model.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">2</span>Run this in a terminal on this laptop</h2>
+    <p>Needs Node.js 20 or newer. It downloads a small agent, serves your data to this laptop only, and starts a DCP worker.</p>
+    <div class="tabs" role="tablist">
+      <button data-os="win">Windows (PowerShell)</button>
+      <button data-os="unix">macOS / Linux</button>
+    </div>
+    <div class="cmd" id="cmd"></div>
+    <button class="copy" id="copy">Copy command</button>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">3</span>Watch the coordinator screen</h2>
+    <p>Your laptop appears in the diagram as soon as the agent connects. Leave the terminal open while training runs; press Ctrl+C to leave.</p>
+    <ul>
+      <li>The agent never sends your rows. It sends their count and feature names, and during training only gradients, Hessians and losses.</li>
+      <li>Your data is served on <code>localhost</code> only, so no other machine can read it.</li>
+    </ul>
+  </div>
+  <p class="err" id="err"></p>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var token = new URLSearchParams(location.search).get('t') || '';
+  var base = location.origin;
+  var os = /Windows/i.test(navigator.userAgent) ? 'win' : 'unix';
+  var sample = null;
+
+  function q(s) { return '"' + s.replace(/"/g, '') + '"'; }
+  function render() {
+    var src = document.querySelector('input[name=src]:checked').value;
+    $('sampleBox').hidden = src !== 'sample';
+    $('fileBox').hidden = src !== 'file';
+    var dataArg = src === 'sample' ? '--sample ' + (sample || 'alaska') : '--data ' + q($('file').value.trim() || 'data.json');
+    var agentUrl = base + '/join/agent.js';
+    var run = 'node fl-agent.js ' + base + ' ' + token + ' ' + dataArg;
+    $('cmd').textContent = os === 'win'
+      ? 'irm ' + agentUrl + ' -OutFile fl-agent.js; ' + run
+      : 'curl -fsSo fl-agent.js ' + agentUrl + ' && ' + run;
+    document.querySelectorAll('.tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.os === os); });
+  }
+  document.querySelectorAll('input[name=src]').forEach(function (r) { r.onchange = render; });
+  $('file').oninput = render;
+  document.querySelectorAll('.tabs button').forEach(function (b) { b.onclick = function () { os = b.dataset.os; render(); }; });
+  $('copy').onclick = function () {
+    var text = $('cmd').textContent;
+    var done = function () { $('copy').textContent = 'Copied'; setTimeout(function () { $('copy').textContent = 'Copy command'; }, 1500); };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done);
+    else { var r = document.createRange(); r.selectNodeContents($('cmd')); var s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); done(); }
+  };
+
+  fetch('/join/samples?t=' + encodeURIComponent(token)).then(function (r) {
+    if (!r.ok) throw new Error('This join link is out of date. Scan the QR code on the coordinator screen again.');
+    return r.json();
+  }).then(function (list) {
+    // Suggest the least-used state, so a room of laptops spreads across the samples.
+    var best = list.slice().sort(function (a, b) { return a.taken - b.taken; })[0];
+    sample = best ? best.name : null;
+    list.forEach(function (s) {
+      var l = document.createElement('label');
+      l.innerHTML = '<input type="radio" name="sample"> <span></span> <small></small>';
+      l.querySelector('span').textContent = s.name.replace(/-/g, ' ');
+      l.querySelector('small').textContent = s.taken ? '(' + s.taken + ' joined)' : '';
+      var input = l.querySelector('input');
+      input.checked = s.name === sample;
+      input.onchange = function () { sample = s.name; render(); };
+      $('samples').appendChild(l);
+    });
+    render();
+  }).catch(function (e) { $('err').textContent = e.message; render(); });
+  render();
+})();
+</script>
+</body>
+</html>

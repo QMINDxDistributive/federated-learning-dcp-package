@@ -18,7 +18,7 @@
  * (https://docs.dcp.dev/api/compute/classes/job.html). 1 DCC per slice is the price the team
  * measured as accepted by public workers (QMIND-Distributive-Testing, TESTING.md).
  */
-function runSingleSliceJob(job, { dccPerSlice, paymentKeystore = null, localWorker = false, timeoutMs, pollMs = 3000, onAccepted = () => {}, onSource = () => {} }) {
+function runSingleSliceJob(job, { dccPerSlice, paymentKeystore = null, localWorker = false, timeoutMs, pollMs = 3000, onAccepted = () => {}, onStatus = () => {}, onSource = () => {} }) {
   if (!localWorker && !(typeof dccPerSlice === 'number' && dccPerSlice > 0)) {
     throw new Error('dccPerSlice must be a positive number (a fixed price caps the cost)');
   }
@@ -49,6 +49,7 @@ function runSingleSliceJob(job, { dccPerSlice, paymentKeystore = null, localWork
       deployed = true;
       onAccepted(ev);
     });
+    job.on('status', (ev) => onStatus(ev)); // { runStatus, total, distributed, computed }
     job.on('result', (ev) => finish(null, ev.result, 'result event'));
     job.on('nofunds', () => finish(new Error('job paused: not enough credits in the payment account (ENOFUNDS)')));
     job.on('error', (ev) => finish(new Error(`work function failed: ${ev && (ev.message || ev.error || JSON.stringify(ev))}`)));
