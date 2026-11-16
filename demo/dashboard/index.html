@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Federated Arthritis Model</title>
+<style>
+  :root {
+    --bg: #0f1320; --panel: #171c2c; --line: #2a3150; --text: #e8ebf5; --muted: #8b93b0;
+    --accent: #5b8cff; --good: #3ecf8e; --warn: #f5b942; --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 20px 32px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  h1 { font-size: 24px; margin: 0; flex: 1; }
+  h1 small { display: block; color: var(--muted); font-size: 14px; font-weight: 400; margin-top: 2px; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  .toggle { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .toggle button { background: none; border: 0; color: var(--muted); padding: 10px 16px; font: inherit; cursor: pointer; }
+  .toggle button.on { background: var(--line); color: var(--text); }
+  #train { background: var(--accent); color: white; border: 0; border-radius: 8px; padding: 12px 28px; font: 600 16px system-ui; cursor: pointer; }
+  #train:disabled { opacity: .5; cursor: default; }
+  main { padding: 24px 32px; display: grid; gap: 24px; grid-template-columns: repeat(12, 1fr); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+  .sites { grid-column: span 12; }
+  .site-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .site { border: 1px solid var(--line); border-radius: 10px; padding: 14px; transition: border-color .2s, box-shadow .2s; }
+  .site .name { font-weight: 600; font-size: 18px; text-transform: capitalize; }
+  .site .rows { color: var(--muted); font-size: 14px; }
+  .site .status { margin-top: 10px; font-size: 13px; color: var(--muted); min-height: 18px; }
+  .site.busy { border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset; }
+  .site.done { border-color: var(--good); }
+  .site .lock { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .training { grid-column: span 7; }
+  .stats { grid-column: span 5; display: grid; gap: 12px; align-content: start; }
+  .big { font-size: 44px; font-weight: 700; line-height: 1; }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .kv .panel { padding: 16px; }
+  .label { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  svg text { fill: var(--muted); font-size: 12px; }
+  .results { grid-column: span 6; }
+  .coefs { grid-column: span 6; }
+  .bar-row { display: grid; grid-template-columns: 150px 1fr 60px; align-items: center; gap: 10px; margin: 8px 0; }
+  .bar-row .n { text-transform: capitalize; }
+  .bar { height: 22px; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .bar > div { height: 100%; background: var(--muted); width: 0; transition: width .8s; }
+  .bar-row.fed .bar > div { background: var(--good); }
+  .bar-row.fed .n { font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 15px; }
+  th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  .match { color: var(--good); font-weight: 600; }
+  #log { color: var(--muted); font-size: 13px; margin-top: 8px; min-height: 18px; }
+  .err { color: var(--bad); }
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 24px; width: min(420px, calc(100vw - 32px)); }
+  dialog::backdrop { background: rgba(5, 8, 16, .7); }
+  dialog h3 { margin: 0 0 6px; font-size: 20px; }
+  dialog p { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+  dialog label { display: block; font-size: 14px; margin: 12px 0 6px; }
+  dialog input[type=password] { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
+  dialog input.bad { border-color: var(--bad); }
+  dialog .check { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 14px; margin-top: 12px; }
+  dialog .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  dialog .actions button { border-radius: 8px; padding: 10px 18px; font: 600 15px system-ui; cursor: pointer; border: 1px solid var(--line); background: none; color: var(--text); }
+  dialog .actions button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  dialog .msg { color: var(--bad); font-size: 14px; min-height: 18px; margin-top: 12px; }
+  @media (max-width: 900px) {
+    header, main { padding: 16px; }
+    .training, .stats, .results, .coefs { grid-column: span 12; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>One arthritis model, five states, no pooled data
+    <small>Federated logistic regression on the Distributive Compute Platform &middot; CDC BRFSS 2024</small></h1>
+  <div class="toggle" role="group" aria-label="Run mode">
+    <button data-mode="dcp">DCP</button>
+    <button data-mode="local">Local simulation</button>
+  </div>
+  <button id="train">Train</button>
+</header>
+<main>
+  <section class="panel sites">
+    <h2>Sites: each state keeps its own data</h2>
+    <div class="site-grid" id="sites"></div>
+  </section>
+
+  <section class="panel training">
+    <h2>Training loss per round</h2>
+    <svg id="chart" viewBox="0 0 640 280" width="100%" role="img" aria-label="Loss per round"></svg>
+    <div id="log"></div>
+  </section>
+
+  <section class="stats">
+    <div class="kv">
+      <div class="panel"><div class="big" id="round">0</div><div class="label">Round</div></div>
+      <div class="panel"><div class="big" id="status">Ready</div><div class="label">Status</div></div>
+      <div class="panel"><div class="big" id="rows">0</div><div class="label">Rows across all sites</div></div>
+      <div class="panel"><div class="big" id="moved">0</div><div class="label">Numbers sent per site per round</div></div>
+    </div>
+  </section>
+
+  <section class="panel results">
+    <h2>Test AUC: each state alone vs federated</h2>
+    <div id="bars"><div class="label">Results appear after training.</div></div>
+  </section>
+
+  <section class="panel coefs">
+    <h2>Federated vs pooled scikit-learn</h2>
+    <div id="coefs"><div class="label">Coefficients appear after training.</div></div>
+  </section>
+</main>
+
+<dialog id="pw">
+  <form id="pwForm" method="dialog">
+    <h3>Unlock DCP</h3>
+    <p>Your keystores in ~/.dcp are unlocked on this laptop for this session. Passwords go only to the local demo server and are not saved.</p>
+    <div id="pwIdWrap">
+      <label for="pwId">API key (identity) password</label>
+      <input type="password" id="pwId" autocomplete="off">
+    </div>
+    <div id="pwPayWrap">
+      <label for="pwPay">Bank account password</label>
+      <input type="password" id="pwPay" autocomplete="off">
+    </div>
+    <label class="check" id="pwSameWrap"><input type="checkbox" id="pwSame"> Both keystores use the same password</label>
+    <div class="msg" id="pwMsg"></div>
+    <div class="actions">
+      <button type="button" id="pwCancel">Cancel</button>
+      <button type="submit" class="primary" id="pwGo">Unlock and train</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  var mode = 'dcp';
+  var losses = [];
+  var siteEls = {};
+  var $ = function (id) { return document.getElementById(id); };
+
+  function setMode(m) {
+    mode = m;
+    document.querySelectorAll('.toggle button').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === m); });
+  }
+  document.querySelectorAll('.toggle button').forEach(function (b) { b.onclick = function () { setMode(b.dataset.mode); }; });
+
+  function renderSites(sites) {
+    var grid = $('sites');
+    grid.innerHTML = '';
+    siteEls = {};
+    var total = 0;
+    sites.forEach(function (s) {
+      total += s.n;
+      var el = document.createElement('div');
+      el.className = 'site';
+      el.innerHTML = '<div class="name"></div><div class="rows"></div><div class="lock">Rows stay with this site\'s job</div><div class="status">Idle</div>';
+      el.querySelector('.name').textContent = s.name.replace('-', ' ');
+      el.querySelector('.rows').textContent = s.n.toLocaleString() + ' rows';
+      grid.appendChild(el);
+      siteEls[s.name] = el;
+    });
+    $('rows').textContent = total.toLocaleString();
+  }
+
+  function siteStatus(name, cls, text) {
+    var el = siteEls[name];
+    if (!el) return;
+    el.classList.remove('busy', 'done');
+    if (cls) el.classList.add(cls);
+    el.querySelector('.status').textContent = text;
+  }
+
+  function drawChart() {
+    var svg = $('chart');
+    var W = 640, H = 280, L = 70, R = 20, T = 16, B = 36;
+    var maxRounds = Math.max(8, losses.length);
+    var html = '';
+    if (losses.length) {
+      var lo = Math.min.apply(null, losses), hi = Math.max.apply(null, losses);
+      var pad = (hi - lo) * 0.08 || 1;
+      lo -= pad; hi += pad;
+      var x = function (i) { return L + (i / (maxRounds - 1)) * (W - L - R); };
+      var y = function (v) { return T + (1 - (v - lo) / (hi - lo)) * (H - T - B); };
+      for (var g = 0; g <= 4; g++) {
+        var v = lo + (g / 4) * (hi - lo);
+        html += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="#2a3150"/>';
+        html += '<text x="' + (L - 8) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + Math.round(v).toLocaleString() + '</text>';
+      }
+      for (var r = 0; r < maxRounds; r++) html += '<text x="' + x(r) + '" y="' + (H - 12) + '" text-anchor="middle">' + (r + 1) + '</text>';
+      var pts = losses.map(function (v, i) { return x(i) + ',' + y(v); }).join(' ');
+      html += '<polyline points="' + pts + '" fill="none" stroke="#5b8cff" stroke-width="3" stroke-linejoin="round"/>';
+      losses.forEach(function (v, i) { html += '<circle cx="' + x(i) + '" cy="' + y(v) + '" r="5" fill="#5b8cff"/>'; });
+    } else {
+      html = '<text x="320" y="140" text-anchor="middle">Press Train to start</text>';
+    }
+    svg.innerHTML = html;
+  }
+
+  function renderResults(e) {
+    var rows = e.localOnly.map(function (l) { return { name: l.site + ' alone', n: l.n, auc: l.auc, fed: false }; });
+    rows.push({ name: 'Federated', n: rows.reduce(function (a, r) { return a + r.n; }, 0), auc: e.federated.auc, fed: true });
+    var min = 0.5, max = Math.max.apply(null, rows.map(function (r) { return r.auc; })) + 0.02;
+    var bars = $('bars');
+    bars.innerHTML = '';
+    rows.forEach(function (r) {
+      var div = document.createElement('div');
+      div.className = 'bar-row' + (r.fed ? ' fed' : '');
+      div.innerHTML = '<div class="n"></div><div class="bar"><div></div></div><div>' + r.auc.toFixed(3) + '</div>';
+      div.querySelector('.n').textContent = r.name.replace('-', ' ');
+      bars.appendChild(div);
+      requestAnimationFrame(function () { div.querySelector('.bar > div').style.width = ((r.auc - min) / (max - min) * 100) + '%'; });
+    });
+
+    var t = '<table><tr><th>Feature</th><th>Federated</th><th>scikit-learn</th><th>Difference</th></tr>';
+    var names = ['intercept'].concat(e.featureNames);
+    var fed = [e.intercept].concat(e.coefficients);
+    var ref = e.reference ? [e.reference.intercept].concat(e.reference.coefficients) : null;
+    var maxDiff = 0;
+    names.forEach(function (n, j) {
+      var diff = ref ? Math.abs(fed[j] - ref[j]) : NaN;
+      if (ref) maxDiff = Math.max(maxDiff, diff);
+      t += '<tr><td>' + n + '</td><td>' + fed[j].toFixed(6) + '</td><td>' + (ref ? ref[j].toFixed(6) : '-') + '</td><td>' + (ref ? diff.toExponential(1) : '-') + '</td></tr>';
+    });
+    t += '</table>';
+    if (ref) t += '<p class="match">Largest difference: ' + maxDiff.toExponential(1) + '. Same model as pooling all the data.</p>';
+    $('coefs').innerHTML = t;
+  }
+
+  function handle(e) {
+    if (e.type === 'start') {
+      losses = []; drawChart();
+      renderSites(e.sites);
+      $('round').textContent = '0';
+      $('status').textContent = e.mode === 'dcp' ? 'DCP' : 'Local';
+      $('log').textContent = 'Round 0: collecting summary statistics from each site';
+      $('bars').innerHTML = '<div class="label">Results appear after training.</div>';
+      $('coefs').innerHTML = '<div class="label">Coefficients appear after training.</div>';
+    } else if (e.type === 'site') {
+      var label = e.stage === 'stats' ? 'Round 0 (stats)' : 'Round ' + e.round;
+      if (e.event === 'deployed') siteStatus(e.site, 'busy', label + ': job deployed');
+      else if (e.event === 'accepted') siteStatus(e.site, 'busy', label + ': running on DCP');
+      else if (e.event === 'result') siteStatus(e.site, 'done', label + ': result in' + (e.ms ? ' (' + (e.ms / 1000).toFixed(1) + ' s)' : ''));
+      else if (e.event === 'retry') siteStatus(e.site, 'busy', label + ': retry ' + e.attempt);
+    } else if (e.type === 'stats') {
+      var d = e.featureNames.length + 1;
+      $('moved').textContent = (d + d * (d + 1) / 2 + 2).toString();
+      $('log').textContent = 'Round 0 done: ' + e.N.toLocaleString() + ' rows, ' + e.featureNames.length + ' features' + (e.warnings.length ? ' (' + e.warnings.length + ' warnings)' : '');
+    } else if (e.type === 'round') {
+      losses.push(e.loss); drawChart();
+      $('round').textContent = e.round;
+      $('log').textContent = 'Round ' + e.round + ': loss ' + e.loss.toFixed(2) + ', largest step ' + e.maxStep.toExponential(1) + ', ' + (e.durationMs / 1000).toFixed(1) + ' s';
+    } else if (e.type === 'done') {
+      $('status').textContent = e.converged ? 'Done' : 'Stopped';
+      $('log').textContent = 'Converged in ' + e.rounds + ' rounds, ' + (e.durationMs / 1000).toFixed(1) + ' s total';
+      renderResults(e);
+      $('train').disabled = false;
+    } else if (e.type === 'error') {
+      $('status').textContent = 'Error';
+      $('log').innerHTML = '';
+      var span = document.createElement('span'); span.className = 'err'; span.textContent = e.message;
+      $('log').appendChild(span);
+      $('train').disabled = false;
+    }
+  }
+
+  function startTraining(body) {
+    return fetch('/train?mode=' + mode, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(function (r) {
+      if (r.ok) return { ok: true };
+      return r.json().catch(function () { return { error: 'Could not start (' + r.status + ')' }; })
+        .then(function (j) { return { ok: false, status: r.status, error: j.error, keystore: j.keystore }; });
+    });
+  }
+
+  var need = { identity: false, payment: false };
+  function syncSame() {
+    var same = $('pwSame').checked;
+    $('pwPayWrap').style.display = same || !need.payment ? 'none' : '';
+  }
+  $('pwSame').onchange = syncSame;
+
+  function askPasswords(n) {
+    need = n;
+    $('pwIdWrap').style.display = n.identity ? '' : 'none';
+    $('pwSameWrap').style.display = n.identity && n.payment ? '' : 'none';
+    $('pwSame').checked = false;
+    $('pwId').value = ''; $('pwPay').value = '';
+    $('pwId').classList.remove('bad'); $('pwPay').classList.remove('bad');
+    $('pwMsg').textContent = '';
+    syncSame();
+    $('pw').showModal();
+    (n.identity ? $('pwId') : $('pwPay')).focus();
+  }
+
+  $('pwCancel').onclick = function () { $('pw').close(); $('train').disabled = false; };
+  $('pw').addEventListener('cancel', function () { $('train').disabled = false; });
+
+  $('pwForm').onsubmit = function (ev) {
+    ev.preventDefault();
+    var idPw = $('pwId').value;
+    var payPw = (!need.identity || !$('pwSame').checked) ? $('pwPay').value : idPw;
+    $('pwGo').disabled = true;
+    $('pwMsg').textContent = 'Unlocking...';
+    startTraining({ identityPassword: idPw, paymentPassword: payPw }).then(function (r) {
+      $('pwGo').disabled = false;
+      // Do not keep passwords in the page any longer than needed.
+      $('pwId').value = ''; $('pwPay').value = '';
+      if (r.ok) { $('pw').close(); return; }
+      $('pwMsg').textContent = r.error || 'Could not unlock';
+      if (r.keystore && r.keystore.indexOf('bank') === 0) { $('pwSame').checked = false; syncSame(); $('pwPay').classList.add('bad'); $('pwPay').focus(); }
+      else { $('pwId').classList.add('bad'); $('pwId').focus(); }
+    }, function () {
+      $('pwGo').disabled = false;
+      $('pwMsg').textContent = 'Could not reach the demo server';
+    });
+  };
+
+  $('train').onclick = function () {
+    $('train').disabled = true;
+    if (mode !== 'dcp') {
+      startTraining().then(function (r) { if (!r.ok) $('train').disabled = false; });
+      return;
+    }
+    fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
+      var n = c.dcpPasswords || { identity: false, payment: false };
+      if (n.identity || n.payment) return askPasswords(n);
+      startTraining().then(function (r) { if (!r.ok) $('train').disabled = false; });
+    });
+  };
+
+  fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
+    setMode(c.defaultMode);
+    renderSites(c.sites);
+    drawChart();
+  });
+  new EventSource('/events').onmessage = function (m) { handle(JSON.parse(m.data)); };
+})();
+</script>
+</body>
+</html>
