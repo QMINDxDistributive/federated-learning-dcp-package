@@ -727,7 +727,8 @@
         return travel(o.downA, stats ? 'stats' : 'β', 'out', 600 * speed);
       });
     } else if (e.event === 'distributed') {
-      enqueue(e.site, function () { return toMachine(e, o, speed); });
+      // Ignore a pick-up reported after this round's result already arrived.
+      enqueue(e.site, function () { if (!o.distributed && o.round === e.round) return toMachine(e, o, speed); });
     } else if (e.event === 'result') {
       enqueue(e.site, function () {
         var pre = o.distributed ? Promise.resolve() : toMachine(e, o, speed);
@@ -832,6 +833,7 @@
       afterAll(function () {
         phase('Done', 'Converged in <b>' + e.rounds + ' rounds</b>' + (e.mode === 'dcpjob' ? '.' : '. Training rows never left their ' + noun(2) + '.'));
         layer.coordStatus.textContent = 'Model ready';
+        sites.forEach(function (s) { setMachine(s.name, 'sent', 'Done'); });
         feed('coord', 'Model trained · test AUC ' + e.federated.auc.toFixed(3));
         return sleep(600).then(function () { showResults(e); $('train').disabled = false; });
       });
@@ -840,6 +842,7 @@
         phase('Stopped', '<span style="color:var(--bad)">' + esc(e.message) + '</span>');
         feed('err', esc(e.message));
         layer.coord && layer.coord.classList.remove('busy');
+        sites.forEach(function (s) { var o = L[s.name]; if (o && !o.g.classList.contains('failed')) setMachine(s.name, null, 'Stopped'); });
         $('train').disabled = false;
       });
     }

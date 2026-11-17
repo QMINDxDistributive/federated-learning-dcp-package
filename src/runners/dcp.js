@@ -72,6 +72,8 @@ async function createDcpRunner(sites, options = {}) {
     const db = dataBytes(site);
     onSiteEvent({ ...base, type: 'deployed', bytes: JSON.stringify(siteArgs).length + db, dataBytes: db, remote: Boolean(site.dataUrl) });
     let distributed = false;
+    // Status events can arrive after the result; once the job is settled, report no more pick-ups.
+    const settle = () => { distributed = true; };
     return runSingleSliceJob(job, {
       dccPerSlice,
       paymentKeystore,
@@ -84,7 +86,7 @@ async function createDcpRunner(sites, options = {}) {
           onSiteEvent({ ...base, type: 'distributed' });
         }
       },
-    });
+    }).finally(settle);
   }
 
   async function runSite(site, args, round) {
