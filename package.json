@@ -15,7 +15,8 @@
     "demo:dcp-job": "node demo/run.js --dcp-job",
     "demo:baselines": "node demo/baselines.js",
     "dcp:hello": "node demo/hello-dcp.js",
-    "demo:agent": "node demo/agent.js"
+    "demo:agent": "node demo/agent.js",
+    "demo:worker": "node demo/worker.js"
   },
   "dependencies": {
     "dcp-client": "^5.9.0"

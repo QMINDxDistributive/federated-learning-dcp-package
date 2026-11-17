@@ -26,6 +26,9 @@ local in a real deployment. The demo now has that mode: **DCP · data in job**
 
 What we found on 2026-11-17 while trying to set up groups ourselves:
 
+- **2026-11-17, later:** Alex gave us one compute group and said to deploy every job to it
+  while the data travels in the slices, and switch to per-site groups later. The demo's DCP ·
+  data in job mode does this (`sharedGroup` in `demo/devices.json`, `npm run demo:worker`).
 - **We cannot create compute groups.** On dcp.cloud, credential lists store group credentials
   (join key + join secret) for *existing* groups. Setting a join secret for a new key fails with
   `DCPError: In operation describe: Insufficient information {} to identify compute group`. A

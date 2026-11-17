@@ -11,7 +11,8 @@ get it, and where to put it. **Never commit any of them.** Keystores live outsid
 | Identity keystore (`id.keystore`) | Proves to the scheduler who is deploying jobs | DCP portal → API keys | `~/.dcp/id.keystore` | Every DCP run |
 | Bank account keystore (`default.keystore`) | Pays for jobs in DCC | DCP portal → Bank / Accounts | `~/.dcp/default.keystore` | Every DCP run (not `DCP_LOCAL_WORKER=1`) |
 | API key (optional) | Replaces the identity keystore | DCP portal → API keys | `DCP_API_KEY` environment variable | Optional |
-| Compute group join key + secret | Lets a job reach, and a worker join, one private group | Distributive creates the group (we cannot, see below) | `demo/devices.json`, or `DCP_ATTACH_KEY` / `DCP_ATTACH_SECRET` | DCP · machines mode only |
+| Shared compute group (join key + secret) | One private group that every job is sent to | Distributive (Alex gave us one, 2026-11-17) | `sharedGroup` in `demo/devices.json`, or `DCP_ATTACH_KEY` / `DCP_ATTACH_SECRET` | DCP · data in job (optional), `npm run demo:worker` |
+| Per-machine compute groups (join key + secret) | One private group per joining machine | Distributive creates them (we cannot, see below) | `computeGroups` in `demo/devices.json` | DCP · machines mode only |
 | Registration key | Links a worker to your account, and tells it which groups to join | dcp.cloud → Workers → Registration keys | Run once on the worker: `dcp-worker --register=<key>[,label]` | Optional, worker side only |
 
 `~/.dcp` means the `.dcp` folder in your home directory: `C:\Users\<you>\.dcp` on Windows,
@@ -22,7 +23,7 @@ get it, and where to put it. **Never commit any of them.** Keystores live outsid
 | Mode | Keystores (or API key) | Compute groups |
 |---|---|---|
 | Simulation | No | No |
-| DCP · data in job | Yes | No (public network). Optional: `DCP_ATTACH_KEY` / `DCP_ATTACH_SECRET` to use one private group |
+| DCP · data in job | Yes | Optional: the shared group (`sharedGroup`). Without it, jobs go to the public network |
 | DCP · machines | Yes | Yes, one per joining machine, in `demo/devices.json` |
 | `npm run dcp:hello` | Yes | Optional: `DCP_ATTACH_KEY` / `DCP_ATTACH_SECRET` |
 
@@ -66,7 +67,33 @@ export DCP_API_KEY="<api key>"        # macOS / Linux
 
 See also the [DCP setup guide](https://docs.dcp.dev/intro/getting-setup.html).
 
-## Compute groups (DCP · machines mode)
+## Shared compute group (DCP · data in job mode)
+
+Alex gave us one compute group. Because this mode sends each state's rows inside its job, any
+worker can run any state's job, so one group is enough: every job goes to it, and whichever
+worker in the group picks a job up runs it. Each state still gets its own job each round,
+computed only on its rows. Later, DCP · machines mode moves to one group per machine.
+
+1. Put the group in `demo/devices.json` (gitignored):
+
+   ```json
+   { "sharedGroup": { "joinKey": "<join key>", "joinSecret": "<join secret>" }, "computeGroups": [] }
+   ```
+
+   (`DCP_ATTACH_KEY` / `DCP_ATTACH_SECRET` override it, for one terminal.)
+2. Start at least one worker in the group, or the jobs wait forever: a private group has no
+   public workers.
+   - This computer: `npm run demo:worker` (evaluator + worker in the shared group only).
+   - Any other computer: open [dcp.work](https://dcp.work/) in a browser and set the compute
+     group (join key and secret) in the top left. No install needed.
+3. Run `npm run demo:dcp-job`, add states and press **Start training**. The status bar and
+   activity log show the group's name.
+
+Quick check before the demo: with the worker running, `npm run dcp:hello` sends five tiny jobs to
+the group (it uses the same `DCP_ATTACH_KEY` / `DCP_ATTACH_SECRET`, so set those in that
+terminal).
+
+## Per-machine compute groups (DCP · machines mode)
 
 A compute group is a private set of workers. A job attached to a group can only run on workers
 that joined it. DCP · machines mode needs **one group per joining machine**, so each machine's job

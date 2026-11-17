@@ -18,8 +18,10 @@ const path = require('node:path');
  *   { "computeGroups": [ { "joinKey": "...", "joinSecret": "..." }, ... ] }
  * Compute groups are created in the DCP portal (dcp-client has no API to create them), so the
  * pool size is the most laptops that can be in one session. Add groups to allow more.
- * Without a pool, DCP_ATTACH_KEY / DCP_ATTACH_SECRET give every laptop the same shared group:
- * that works, but a job may land on the wrong laptop first and be retried.
+ * Without a pool, one shared group gives every laptop the same group: that works, but a job may
+ * land on the wrong laptop first and be retried. The shared group is "sharedGroup" in
+ * devices.json, or DCP_ATTACH_KEY / DCP_ATTACH_SECRET (which win). The data-in-job mode sends
+ * every job to the shared group, or to the public network without one.
  */
 
 const CONFIG_FILE = path.join(__dirname, 'devices.json');
@@ -27,11 +29,12 @@ const HEARTBEAT_TIMEOUT_MS = 15 * 1000;
 
 function loadGroupPool(file = CONFIG_FILE, env = process.env) {
   const cfg = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
-  const pool = (cfg.computeGroups || []).filter((g) => g && g.joinKey && g.joinKey !== 'TODO');
-  return {
-    pool,
-    shared: env.DCP_ATTACH_KEY ? { joinKey: env.DCP_ATTACH_KEY, joinSecret: env.DCP_ATTACH_SECRET } : null,
-  };
+  const real = (g) => g && g.joinKey && g.joinKey !== 'TODO';
+  const pool = (cfg.computeGroups || []).filter(real);
+  const shared = env.DCP_ATTACH_KEY
+    ? { joinKey: env.DCP_ATTACH_KEY, joinSecret: env.DCP_ATTACH_SECRET }
+    : real(cfg.sharedGroup) ? { joinKey: cfg.sharedGroup.joinKey, joinSecret: cfg.sharedGroup.joinSecret } : null;
+  return { pool, shared };
 }
 
 function slug(s) {

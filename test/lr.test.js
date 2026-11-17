@@ -158,3 +158,18 @@ test('participants: join hands out one compute group per laptop and frees it on 
   const sim = reg.join({ token: 'tok', simulated: true, name: 'florida', rows: 5, featureNames: ['a', 'b'] });
   assert.equal(sim.computeGroup, null, 'simulated laptops do not use compute groups');
 });
+
+test('demo group config: sharedGroup from devices.json, env overrides, TODO ignored', () => {
+  const os = require('node:os');
+  const { loadGroupPool } = require('../demo/participants');
+  const f = path.join(os.tmpdir(), `fl-devices-${process.pid}.json`);
+  try {
+    fs.writeFileSync(f, JSON.stringify({ sharedGroup: { joinKey: 'g1', joinSecret: 's1' }, computeGroups: [{ joinKey: 'TODO', joinSecret: 'TODO' }] }));
+    assert.deepEqual(loadGroupPool(f, {}), { pool: [], shared: { joinKey: 'g1', joinSecret: 's1' } });
+    assert.equal(loadGroupPool(f, { DCP_ATTACH_KEY: 'env', DCP_ATTACH_SECRET: 'x' }).shared.joinKey, 'env');
+    fs.writeFileSync(f, JSON.stringify({ sharedGroup: { joinKey: 'TODO', joinSecret: 'TODO' } }));
+    assert.equal(loadGroupPool(f, {}).shared, null);
+  } finally {
+    fs.rmSync(f, { force: true });
+  }
+});

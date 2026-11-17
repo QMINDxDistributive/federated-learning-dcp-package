@@ -40,6 +40,9 @@ like, then **Start training**. Everything runs on this computer with the same ev
 pacing as a real run. Use it to rehearse.
 
 **DCP · data in job** (`npm run demo:dcp-job`): press **+ Add state**, then **Start training**.
+With a shared compute group in `demo/devices.json`, every job goes to that group; start a worker in
+it first (`npm run demo:worker`, or [dcp.work](https://dcp.work/) with the group set). See
+[DCP credentials](dcp-credentials.md#shared-compute-group-dcp--data-in-job-mode).
 This is real DCP: one job per state per round, paid in DCC. Each state's rows travel inside its job
 (decision 0001), so no compute groups are needed. This is Alex's advice for the showcase (see
 [questions for Alex](../specs/shared/questions-for-alex.md)): show federated training on DCP

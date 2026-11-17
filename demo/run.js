@@ -233,7 +233,11 @@ async function runTraining(mode, emitFn, participants) {
   if (mode === 'dcp') {
     runner = (await getDcpSession()).withSites(dcpSites(participants));
   } else if (mode === 'dcpjob') {
-    const sites = simSites(participants);
+    // Every job goes to the shared compute group (or the public network without one). Which
+    // worker in the group picks each job up is up to DCP, so the device label says just that.
+    const where = groups.shared ? `a worker in ${groups.shared.joinKey}` : 'a public DCP worker';
+    const computeGroups = groups.shared ? [{ attachKey: groups.shared.joinKey, attachSecret: groups.shared.joinSecret }] : undefined;
+    const sites = simSites(participants).map((s) => ({ ...s, data: { ...s.data, device: where }, computeGroups }));
     for (const s of sites) dataBytes[s.name] = JSON.stringify(s.data).length;
     runner = (await getDcpSession()).withSites(sites);
   } else {
@@ -367,7 +371,7 @@ function handle(req, res) {
   if (p === '/config') {
     return sendJson(res, 200, {
       defaultMode: argv.includes('--dcp-job') ? 'dcpjob' : argv.includes('--dcp') ? 'dcp' : 'sim',
-      dcpJobGroup: process.env.DCP_ATTACH_KEY ? 'shared compute group' : 'public DCP network',
+      dcpJobGroup: groups.shared ? `compute group ${groups.shared.joinKey}` : 'public DCP network',
       joinUrls: joinUrls(),
       participants: registry.list(),
       slots: registry.slots(),
@@ -442,6 +446,6 @@ if (argv.includes('--cli')) {
     console.log(`Dashboard (this machine): http://localhost:${PORT}`);
     for (const u of joinUrls()) console.log(`Join link:                ${u}`);
     const s = registry.slots();
-    console.log(s.total ? `Compute groups: ${s.total} (one per laptop)` : s.shared ? 'Compute groups: one shared group (DCP_ATTACH_KEY)' : 'Compute groups: none configured (simulation only; see demo/devices.example.json)');
+    console.log(s.total ? `Compute groups: ${s.total} (one per laptop)` : s.shared ? `Compute groups: one shared group (${groups.shared.joinKey})` : 'Compute groups: none configured (simulation only; see demo/devices.example.json)');
   });
 }

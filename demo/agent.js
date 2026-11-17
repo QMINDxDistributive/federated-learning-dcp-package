@@ -150,7 +150,7 @@ async function startWorker(group, port) {
   // I_WANT_AN_INSECURE_DCP_WORKER skips the 5 s "not for production" countdown; the warning above says it.
   run('evaluator', ['dcp-evaluator-start', '-t', 'node', '-e', q(process.execPath), `--additional-files=${q(evaluator)}`],
     { I_WANT_AN_INSECURE_DCP_WORKER: 'badly' });
-  const workerArgs = ['dcp-worker', '--output', 'text', '--no-global', '--allow-origin', `http://localhost:${port}`, '--join', `${group.joinKey},${group.joinSecret}`];
+  const workerArgs = ['dcp-worker', '--output', 'text', '--no-global', '--allow-origin', `http://localhost:${port}`, '--join', q(`${group.joinKey},${group.joinSecret}`)];
   setTimeout(() => run('worker', workerArgs), 3000);
 }
 

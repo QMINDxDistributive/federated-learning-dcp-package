@@ -1,10 +1,31 @@
 {
-  "_comment": "Copy to demo/devices.json (gitignored). A pool of DCP compute groups, created in the DCP portal. Each laptop that joins gets one; add more groups to allow more laptops.",
+  "_comment": "Copy to demo/devices.json (gitignored). See demo/dcp-credentials.md.",
+  "_sharedGroup": "One compute group for every job. Used by 'DCP · data in job' mode and by npm run demo:worker; also the fallback for 'DCP · machines' when computeGroups is empty.",
+  "sharedGroup": {
+    "joinKey": "TODO",
+    "joinSecret": "TODO"
+  },
+  "_computeGroups": "'DCP · machines' mode: a pool of groups, one lent to each machine that joins.",
   "computeGroups": [
-    { "joinKey": "TODO", "joinSecret": "TODO" },
-    { "joinKey": "TODO", "joinSecret": "TODO" },
-    { "joinKey": "TODO", "joinSecret": "TODO" },
-    { "joinKey": "TODO", "joinSecret": "TODO" },
-    { "joinKey": "TODO", "joinSecret": "TODO" }
+    {
+      "joinKey": "TODO",
+      "joinSecret": "TODO"
+    },
+    {
+      "joinKey": "TODO",
+      "joinSecret": "TODO"
+    },
+    {
+      "joinKey": "TODO",
+      "joinSecret": "TODO"
+    },
+    {
+      "joinKey": "TODO",
+      "joinSecret": "TODO"
+    },
+    {
+      "joinKey": "TODO",
+      "joinSecret": "TODO"
+    }
   ]
 }
