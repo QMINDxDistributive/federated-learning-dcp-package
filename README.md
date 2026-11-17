@@ -27,7 +27,8 @@ from a link or QR code, and their rows stay on each laptop. A real DCP run needs
 compute group for each laptop that joins**, created in the DCP portal and listed in
 `demo/devices.json`. Without groups, only Simulation mode can train. The reason is in
 [demo/README.md](demo/README.md#why-one-compute-group-per-laptop), and the open questions
-for Distributive are in [questions-for-alex.md](specs/shared/questions-for-alex.md).
+for Distributive are in [questions-for-alex.md](specs/shared/questions-for-alex.md). What each DCP
+key is and where to put it: [demo/dcp-credentials.md](demo/dcp-credentials.md).
 
 ## Repository layout
 

@@ -16,6 +16,9 @@ The dashboard is a live system view, with a join link and QR code always on scre
 
 ## Run it
 
+DCP modes need credentials: see [DCP credentials](dcp-credentials.md) for what each key is and
+where it goes. Simulation needs none.
+
 ```sh
 npm install
 npm test               # includes the federated vs scikit-learn check (1e-6)
@@ -95,8 +98,8 @@ worker runs nothing that isn't attached to it. Ways to remove the manual step ar
    `DCP_ATTACH_SECRET` give every laptop one shared group. That works, but a job may land on
    the wrong laptop first and be retried.
 2. **Credentials.** Set `DCP_API_KEY`, or put the keystores in `~/.dcp/` (the dashboard asks
-   for their passwords). See the [setup guide](https://docs.dcp.dev/intro/getting-setup.html).
-   Never commit keys or keystores.
+   for their passwords). See [DCP credentials](dcp-credentials.md) for what each key is, where
+   to get it and where to put it. Never commit keys or keystores.
 3. **Network.** The laptops must be able to reach this computer, e.g. on the same Wi-Fi. The
    server listens on all interfaces (`HOST`, default `0.0.0.0`). Windows may ask whether to
    allow Node through the firewall; allow it on private networks. If this computer has several
