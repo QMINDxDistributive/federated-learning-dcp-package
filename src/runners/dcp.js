@@ -54,6 +54,13 @@ async function createDcpRunner(sites, options = {}) {
     return new compute.RemoteDataSet([site.dataUrl]);
   }
 
+  const dataBytesOf = new WeakMap(); // rows sent inside the slice (0001 path), measured once per site
+  function dataBytes(site) {
+    if (!site.data) return 0;
+    if (!dataBytesOf.has(site)) dataBytesOf.set(site, JSON.stringify(site.data).length);
+    return dataBytesOf.get(site);
+  }
+
   async function runSiteOnce(site, args, round) {
     const siteArgs = site.dataUrl ? { ...args, site: site.name } : args;
     const job = compute.for(sliceInput(site), workFunction, [siteArgs]);
@@ -61,7 +68,9 @@ async function createDcpRunner(sites, options = {}) {
     const groups = site.computeGroups || computeGroups;
     if (groups) job.computeGroups = groups;
     const base = { site: site.name, round, stage: args.stage };
-    onSiteEvent({ ...base, type: 'deployed', bytes: JSON.stringify(siteArgs).length, remote: Boolean(site.dataUrl) });
+    // bytes: everything sent in the job, including rows when they travel in the slice (dataBytes).
+    const db = dataBytes(site);
+    onSiteEvent({ ...base, type: 'deployed', bytes: JSON.stringify(siteArgs).length + db, dataBytes: db, remote: Boolean(site.dataUrl) });
     let distributed = false;
     return runSingleSliceJob(job, {
       dccPerSlice,

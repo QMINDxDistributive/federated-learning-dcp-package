@@ -28,6 +28,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const os = require('node:os');
+const path = require('node:path');
 const { spawn, execFile } = require('node:child_process');
 
 const DCP_WORKER_VERSION = '4.7.0';
@@ -101,11 +102,36 @@ function killChildren() {
   }
 }
 
-function startWorker(group, port) {
-  const run = (label, args) => {
+/**
+ * `dcp-evaluator-start -t node` alone still launches the native evaluator binary, which an npx
+ * install does not include (spawn bin\dcp-evaluator ENOENT). The Node evaluator is
+ * dcp-client/libexec/evaluator-node.js inside the npx cache, so find it from npx's PATH and pass
+ * it to node: `-e <node> --additional-files=<evaluator-node.js>`.
+ */
+function findNodeEvaluator() {
+  const helper = path.join(os.tmpdir(), `fl-agent-find-evaluator-${process.pid}.js`);
+  fs.writeFileSync(helper, `const p = require('path'), fs = require('fs');
+for (const d of process.env.PATH.split(p.delimiter)) {
+  const f = p.join(d, '..', 'dcp-client', 'libexec', 'evaluator-node.js');
+  if (fs.existsSync(f)) { console.log(f); process.exit(0); }
+}
+process.exit(1);
+`);
+  return new Promise((resolve) => {
+    execFile('npx', ['--yes', '-p', `dcp-worker@${DCP_WORKER_VERSION}`, 'node', helper],
+      { shell: process.platform === 'win32' }, (err, stdout) => {
+        fs.rmSync(helper, { force: true });
+        resolve(err ? null : stdout.trim().split(/\r?\n/).pop());
+      });
+  });
+}
+
+async function startWorker(group, port) {
+  const run = (label, args, env) => {
     const child = spawn('npx', ['--yes', '-p', `dcp-worker@${DCP_WORKER_VERSION}`, ...args], {
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: process.platform === 'win32',
+      env: { ...process.env, ...env },
     });
     const print = (chunk) => chunk.toString().split(/\r?\n/).filter(Boolean).forEach((l) => console.log(`  [${label}] ${l}`));
     child.stdout.on('data', print);
@@ -115,7 +141,15 @@ function startWorker(group, port) {
     return child;
   };
   console.log('Starting the DCP evaluator (Node sandbox, fine for a demo, not for production) and worker...');
-  run('evaluator', ['dcp-evaluator-start', '-t', 'node']);
+  const evaluator = await findNodeEvaluator();
+  if (!evaluator) {
+    console.log('  Could not find the Node evaluator in the dcp-worker install; the worker will not run jobs.');
+    return;
+  }
+  const q = (s) => (process.platform === 'win32' ? `"${s}"` : s); // shell: true on Windows
+  // I_WANT_AN_INSECURE_DCP_WORKER skips the 5 s "not for production" countdown; the warning above says it.
+  run('evaluator', ['dcp-evaluator-start', '-t', 'node', '-e', q(process.execPath), `--additional-files=${q(evaluator)}`],
+    { I_WANT_AN_INSECURE_DCP_WORKER: 'badly' });
   const workerArgs = ['dcp-worker', '--output', 'text', '--no-global', '--allow-origin', `http://localhost:${port}`, '--join', `${group.joinKey},${group.joinSecret}`];
   setTimeout(() => run('worker', workerArgs), 3000);
 }
@@ -190,7 +224,7 @@ async function main() {
     workerRunning = true;
   } else {
     console.log('Start the DCP worker yourself (in two more terminals):');
-    console.log(`  npx -p dcp-worker@${DCP_WORKER_VERSION} dcp-evaluator-start -t node`);
+    console.log(`  npx -p dcp-worker@${DCP_WORKER_VERSION} dcp-evaluator-start -t node -e <path to node> --additional-files=<npx cache>/node_modules/dcp-client/libexec/evaluator-node.js`);
     console.log(`  npx -p dcp-worker@${DCP_WORKER_VERSION} dcp-worker --no-global --allow-origin http://localhost:${port} --join ${me.computeGroup.joinKey},<secret>\n`);
   }
 

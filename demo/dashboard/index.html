@@ -217,7 +217,8 @@
   <h1>One arthritis model, many laptops, no pooled data
     <small>Federated Newton logistic regression on the Distributive Compute Platform &middot; CDC BRFSS 2024</small></h1>
   <div class="toggle" role="group" aria-label="Run mode">
-    <button data-mode="dcp">DCP &middot; laptops</button>
+    <button data-mode="dcp" title="Each laptop's rows stay on it; needs one compute group per laptop">DCP &middot; laptops</button>
+    <button data-mode="dcpjob" title="Real DCP; each state's rows are sent inside its job (demo stand-in for local data)">DCP &middot; data in job</button>
     <button data-mode="sim">Simulation</button>
   </div>
   <button class="btn" id="train">Start training</button>
@@ -251,7 +252,7 @@
       <h2>Traffic</h2>
       <div class="counters">
         <div class="counter sent"><div class="v" id="cSent">0 B</div><div class="l">model numbers over the network</div></div>
-        <div class="counter kept"><div class="v" id="cKept">&mdash;</div><div class="l">rows read locally, never sent</div></div>
+        <div class="counter kept"><div class="v" id="cKept">&mdash;</div><div class="l" id="cKeptL">rows read locally, never sent</div></div>
         <div class="counter"><div class="v" id="cJobs">0</div><div class="l">DCP jobs</div></div>
         <div class="counter"><div class="v" id="cLoss">&mdash;</div><div class="l">training loss</div></div>
       </div>
@@ -434,8 +435,8 @@
     if (!sites.length) {
       var e = el('g', { class: 'empty-slot' }, layer.nodes);
       el('rect', { x: 290, y: LAPTOP_TOP + 10, width: 420, height: 120, rx: 14 }, e);
-      txt('text', { x: 500, y: LAPTOP_TOP + 62, 'text-anchor': 'middle', class: 'empty-title' }, mode === 'dcp' ? 'Waiting for laptops to join' : 'No simulated laptops yet', e);
-      txt('text', { x: 500, y: LAPTOP_TOP + 86, 'text-anchor': 'middle', class: 'empty-sub' }, mode === 'dcp' ? 'Scan the QR code or open the join link on another laptop' : 'Use “+ Add simulated laptop” in the join panel', e);
+      txt('text', { x: 500, y: LAPTOP_TOP + 62, 'text-anchor': 'middle', class: 'empty-title' }, mode === 'dcp' ? 'Waiting for laptops to join' : mode === 'dcpjob' ? 'No states added yet' : 'No simulated laptops yet', e);
+      txt('text', { x: 500, y: LAPTOP_TOP + 86, 'text-anchor': 'middle', class: 'empty-sub' }, mode === 'dcp' ? 'Scan the QR code or open the join link on another laptop' : 'Use “' + addLabel() + '” in the join panel', e);
     }
 
     sites.forEach(function (st) { drawLaptop(st, opts.appear && opts.appear.indexOf(st.name) >= 0); });
@@ -634,7 +635,7 @@
       enqueue(e.site, function () {
         if (o.round !== e.round) { o.round = e.round; o.distributed = false; }
         counters.sent += e.bytes || 0; counters.jobs += 1; updateCounters();
-        var what = e.stage === 'stats' ? 'request for counts and sums' : 'weights β (' + dParams() + ' numbers)';
+        var what = (e.stage === 'stats' ? 'request for counts and sums' : 'weights β (' + dParams() + ' numbers)') + (e.dataBytes ? ' + its rows' : '');
         feed('out', '→', '<b>' + esc(nice(e.site)) + '</b> ' + what + ' <code>' + fmtBytes(e.bytes || 0) + '</code>');
         setLaptop(e.site, null, 'job queued at scheduler');
         return travel(o.downA, e.stage === 'stats' ? 'stats?' : 'β·' + dParams(), 'out', 650 * speed).then(function () { setHeld(1); });
@@ -676,9 +677,13 @@
     if (layer.held) setHeld(-1);
     return travel(o.down, e.stage === 'stats' ? 'stats?' : 'β·' + dParams(), 'out', 750 * speed)
       .then(function () {
-        setLaptop(e.site, 'reading', 'reading rows locally');
-        var where = o.p.port ? 'from <code>localhost:' + esc(o.p.port) + '</code>' : 'locally';
-        feed('local', '↻', '<b>' + esc(nice(e.site)) + '</b> worker read ' + (o.n ? o.n.toLocaleString() + ' rows' : 'its rows') + ' ' + where + ', not sent');
+        setLaptop(e.site, 'reading', dataInJob() ? 'reading rows from the job' : 'reading rows locally');
+        if (dataInJob()) {
+          feed('local', '↻', '<b>' + esc(nice(e.site)) + '</b> worker got ' + (o.n ? o.n.toLocaleString() + ' rows' : 'its rows') + ' inside the job (demo; a real site keeps them local)');
+        } else {
+          var where = o.p.port ? 'from <code>localhost:' + esc(o.p.port) + '</code>' : 'locally';
+          feed('local', '↻', '<b>' + esc(nice(e.site)) + '</b> worker read ' + (o.n ? o.n.toLocaleString() + ' rows' : 'its rows') + ' ' + where + ', not sent');
+        }
         return localRead(e.site);
       })
       .then(function () {
@@ -711,7 +716,7 @@
       layer.coordStatus.textContent = 'round 0 · asking for summary stats';
       phase('Round 0', 'The coordinator asks each laptop for <b>row counts, sums and class counts</b>, to standardize features globally. No rows are requested.');
       sites.forEach(function (s) { setLaptop(s.name, null, 'waiting for job'); });
-      feed('coord', '◆', (e.mode === 'dcp' ? 'DCP run' : 'Simulation') + ' started with ' + sites.length + ' laptops');
+      feed('coord', '◆', (e.mode === 'dcp' ? 'DCP run' : e.mode === 'dcpjob' ? 'DCP run (data in job, ' + esc((config && config.dcpJobGroup) || 'public network') + ')' : 'Simulation') + ' started with ' + sites.length + (e.mode === 'dcpjob' ? ' states' : ' laptops'));
     } else if (e.type === 'cost') {
       feed('coord', '◆', 'Price ' + e.dccPerSlice + ' DCC per job: about ' + e.typical + ' DCC, at most ' + e.ceiling + ' DCC');
     } else if (e.type === 'site') {
@@ -779,7 +784,11 @@
     return null;
   }
   function modeParticipants() {
-    return participants.filter(function (p) { return p.simulated === (mode === 'sim'); });
+    return participants.filter(function (p) { return p.simulated === (mode !== 'dcp'); });
+  }
+  /** dcpjob: real DCP, but the rows travel inside each job (Alex's showcase advice, decision 0001). */
+  function dataInJob() { return mode === 'dcpjob'; }
+  function addLabel() { return dataInJob() ? '+ Add state' : '+ Add simulated laptop';
   }
 
   /** Redraw the laptops for the current mode. New names get the join ripple. */
@@ -795,8 +804,10 @@
     if (training) return;
     var online = sites.filter(function (p) { return p.status === 'online'; }).length;
     phase('Ready', online < minParticipants
-      ? (mode === 'dcp' ? 'Waiting for laptops to join. Each one brings its own data; at least <b>' + minParticipants + '</b> must be online.' : 'Add at least <b>' + minParticipants + '</b> simulated laptops.')
-      : '<b>' + online + ' laptops</b> ready, each holding its own data. Press <b>Start training</b>.');
+      ? (mode === 'dcp' ? 'Waiting for laptops to join. Each one brings its own data; at least <b>' + minParticipants + '</b> must be online.' : 'Add at least <b>' + minParticipants + '</b> ' + (dataInJob() ? 'states' : 'simulated laptops') + '.')
+      : dataInJob()
+        ? '<b>' + online + ' states</b> ready. Each round, each state’s rows go to DCP inside its job, on the ' + esc((config && config.dcpJobGroup) || 'public DCP network') + '. In a real deployment they would stay on each site.'
+        : '<b>' + online + ' laptops</b> ready, each holding its own data. Press <b>Start training</b>.');
   }
 
   function participantEvent(e) {
@@ -806,11 +817,11 @@
     else if (existing) participants[participants.indexOf(existing)] = p;
     else participants.push(p);
 
-    var inMode = p.simulated === (mode === 'sim');
+    var inMode = p.simulated === (mode !== 'dcp');
     if (inMode) {
       var verb = { joined: 'joined', left: 'left', offline: 'went offline', updated: null }[e.action];
       if (verb) feed(e.action === 'joined' ? 'in' : 'err', e.action === 'joined' ? '+' : '−',
-        '<b>' + esc(nice(p.name)) + '</b> ' + verb + (p.simulated ? '' : ' <code>' + esc(p.device) + '</code>') + (e.action === 'joined' ? ' with ' + p.rows.toLocaleString() + ' rows (kept on the laptop)' : ''));
+        '<b>' + esc(nice(p.name)) + '</b> ' + verb + (p.simulated ? '' : ' <code>' + esc(p.device) + '</code>') + (e.action === 'joined' ? ' with ' + p.rows.toLocaleString() + (dataInJob() ? ' rows' : ' rows (kept on the laptop)') : ''));
     }
     if (!inMode) { renderJoin(); return; }
     if (training) {
@@ -860,8 +871,10 @@
     var real = participants.filter(function (p) { return !p.simulated; }).length;
     $('joinCount').textContent = mode === 'dcp'
       ? real + ' joined' + (s.total ? ' · ' + Math.max(0, s.total - s.used) + ' of ' + s.total + ' compute groups free' : s.shared ? ' · shared compute group' : ' · no compute groups set up')
+      : dataInJob() ? online + ' state' + (online === 1 ? '' : 's') + ' · data sent in each job'
       : online + ' simulated laptop' + (online === 1 ? '' : 's');
-    $('simAdd').hidden = mode !== 'sim';
+    $('simAdd').hidden = mode === 'dcp';
+    $('simAdd').textContent = addLabel();
     $('joinPending').textContent = training && pendingLayout ? 'Changes apply after this run' : '';
     $('train').disabled = training || modeParticipants().filter(function (p) { return p.status === 'online'; }).length < minParticipants;
   }
@@ -883,7 +896,9 @@
   // ---------- results popup ----------
   function showResults(e) {
     $('rTitle').textContent = 'Training complete: ' + (e.converged ? 'converged in ' + e.rounds + ' rounds' : 'stopped after ' + e.rounds + ' rounds');
-    $('rSub').textContent = (e.mode === 'dcp' ? 'Run on DCP across ' : 'Simulated run across ') + sites.length + ' laptops in ' + (e.durationMs / 1000).toFixed(1) + ' s. No training row left its laptop.';
+    $('rSub').textContent = e.mode === 'dcpjob'
+      ? 'Run on DCP across ' + sites.length + ' states in ' + (e.durationMs / 1000).toFixed(1) + ' s. For this demo each state’s rows were sent inside its jobs; in a real deployment they stay on each site and only the model numbers move.'
+      : (e.mode === 'dcp' ? 'Run on DCP across ' : 'Simulated run across ') + sites.length + ' laptops in ' + (e.durationMs / 1000).toFixed(1) + ' s. No training row left its laptop.';
     $('rAucSub').textContent = 'Test AUC on ' + (e.testRows || 0).toLocaleString() + ' held-out rows (higher is better)';
 
     var rows = e.localOnly.map(function (l) { return { name: title(l.site), sub: l.n.toLocaleString(), auc: l.auc, fed: false }; });
@@ -928,17 +943,17 @@
 
     var r = e.run;
     var moved = r.bytesSent + r.bytesReceived;
-    $('rModeSub').textContent = e.mode === 'dcp' ? 'DCP, one job per state per round' : 'Simulation on this laptop';
+    $('rModeSub').textContent = e.mode === 'dcp' ? 'DCP, one job per state per round' : e.mode === 'dcpjob' ? 'DCP, one job per state per round, rows in the job' : 'Simulation on this laptop';
     var stats = [
       ['Rounds', e.rounds + ' + round 0'],
       ['Wall time', (e.durationMs / 1000).toFixed(1) + ' s'],
       ['DCP jobs', r.slices],
-      [e.mode === 'dcp' ? 'Cost (' + r.dccPerSlice + ' DCC per job)' : 'Cost on DCP at 1 DCC/job', (r.dccPerSlice ? r.slices * r.dccPerSlice : r.slices) + ' DCC'],
-      ['Model numbers sent', fmtBytes(r.bytesSent)],
+      [e.mode !== 'sim' ? 'Cost (' + r.dccPerSlice + ' DCC per job)' : 'Cost on DCP at 1 DCC/job', (r.dccPerSlice ? r.slices * r.dccPerSlice : r.slices) + ' DCC'],
+      [r.dataBytesSent ? 'Sent (rows + model numbers)' : 'Model numbers sent', fmtBytes(r.bytesSent)],
       ['Aggregates received', fmtBytes(r.bytesReceived)]
     ];
     var html = stats.map(function (s) { return '<div class="stat"><div class="v">' + esc(s[1]) + '</div><div class="l">' + esc(s[0]) + '</div></div>'; }).join('');
-    if (r.rawBytes) {
+    if (r.rawBytes && !r.dataBytesSent) {
       var pct = Math.min(100, moved / (moved + r.rawBytes) * 100);
       html += '<div class="stat wide"><div class="v" style="color:var(--good)">' + r.rows.toLocaleString() + ' rows · ' + fmtBytes(r.rawBytes) + '</div>' +
         '<div class="l">stayed on the laptops. Network carried ' + fmtBytes(moved) + ' of model numbers in total, independent of how many rows each state has.</div>' +
@@ -960,6 +975,7 @@
     var changed = mode !== m;
     mode = m;
     document.querySelectorAll('.toggle button').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === m); });
+    $('cKeptL').textContent = m === 'dcpjob' ? 'rows sent inside jobs (demo only)' : 'rows read locally, never sent';
     showProblem();
     if (!fromRun && (changed || !layer.coord)) relayout();
   }
@@ -1032,10 +1048,10 @@
 
   $('train').onclick = function () {
     $('train').disabled = true;
-    if (mode !== 'dcp') return startTraining().then(started);
+    if (mode === 'sim') return startTraining().then(started);
     fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
       config = c;
-      if (c.dcpProblem) { showProblem(); $('train').disabled = false; return; }
+      if (mode === 'dcp' && c.dcpProblem) { showProblem(); $('train').disabled = false; return; }
       var n = c.dcpPasswords || { identity: false, payment: false };
       if (n.identity || n.payment) return askPasswords(n);
       startTraining().then(started);

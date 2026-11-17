@@ -12,6 +12,7 @@
     "test": "node --test test/",
     "demo": "node demo/run.js",
     "demo:dcp": "node demo/run.js --dcp",
+    "demo:dcp-job": "node demo/run.js --dcp-job",
     "demo:baselines": "node demo/baselines.js",
     "dcp:hello": "node demo/hello-dcp.js",
     "demo:agent": "node demo/agent.js"

@@ -5,7 +5,8 @@
  * laptops that have joined, and runs federated training on request.
  *
  *   node demo/run.js            dashboard at http://localhost:3000, join page on the LAN
- *   node demo/run.js --dcp      default the dashboard to DCP mode
+ *   node demo/run.js --dcp      default the dashboard to DCP mode (laptops)
+ *   node demo/run.js --dcp-job  default the dashboard to DCP mode (data in the job)
  *   node demo/run.js --cli      no dashboard: simulation with the five sample states
  *
  * Joining (decision 0004): the dashboard always shows a join link and QR code. A laptop opens it,
@@ -14,9 +15,13 @@
  *
  * Modes:
  *   sim  Simulation. Add simulated laptops in the dashboard; everything runs in this process.
- *   dcp  The laptops that joined. This process never sees their rows: each round it sends one
- *        DCP job per laptop, pointing at that laptop's localhost URL, attached to that laptop's
- *        compute group. The laptop's worker reads its own rows and returns only aggregates.
+ *   dcp     The laptops that joined. This process never sees their rows: each round it sends one
+ *           DCP job per laptop, pointing at that laptop's localhost URL, attached to that laptop's
+ *           compute group. The laptop's worker reads its own rows and returns only aggregates.
+ *   dcpjob  Data in the job (decision 0001, Alex's showcase advice): the sample states on this
+ *           machine, each sent inside its own DCP job on the public network (or the shared group
+ *           in DCP_ATTACH_KEY). Real DCP, no per-laptop compute groups needed. In a real
+ *           deployment the data would stay on each site; the dashboard says so.
  *
  * Network: the dashboard, its events and the training controls answer only on this machine
  * (loopback). Only the join page, the agent download and the agent API are reachable from the LAN.
@@ -184,14 +189,16 @@ function dcpSites(participants) {
   }));
 }
 
-/** Wrap a runner to count what crosses the network, for the run stats. */
-function metered(runner, tally) {
+/** Wrap a runner to count what crosses the network, for the run stats.
+ *  dataBytes: { site: bytes } of rows sent inside each job (dcpjob mode), counted every round. */
+function metered(runner, tally, dataBytes = {}) {
   return {
     ...runner,
     async runRound(stage, args, round) {
       const results = await runner.runRound(stage, args, round);
       tally.slices += results.length;
-      tally.bytesSent += runner.siteNames.reduce((a, name) => a + JSON.stringify({ ...args, site: name }).length, 0);
+      tally.bytesSent += runner.siteNames.reduce((a, name) => a + JSON.stringify({ ...args, site: name }).length + (dataBytes[name] || 0), 0);
+      tally.dataBytesSent += runner.siteNames.reduce((a, name) => a + (dataBytes[name] || 0), 0);
       for (const r of results) {
         tally.bytesReceived += JSON.stringify(r).length;
         if (r.device) tally.devices[r.site] = r.device;
@@ -214,15 +221,24 @@ function referenceFor(participants) {
   return { ref: null, why: `The pooled scikit-learn reference covers exactly ${ref.sites.join(', ')}, one laptop each. This run had ${used.map((d) => d || 'custom data').join(', ')}.` };
 }
 
+function notEnough(mode, n) {
+  if (mode === 'dcp') return `Need at least ${MIN_PARTICIPANTS} laptops online to train; ${n} joined. Share the join link.`;
+  return `Add at least ${MIN_PARTICIPANTS} ${mode === 'dcpjob' ? 'states' : 'simulated laptops'} first.`;
+}
+
 async function runTraining(mode, emitFn, participants) {
-  if (participants.length < MIN_PARTICIPANTS) {
-    throw new Error(mode === 'dcp'
-      ? `Need at least ${MIN_PARTICIPANTS} laptops online to train; ${participants.length} joined. Share the join link.`
-      : `Add at least ${MIN_PARTICIPANTS} simulated laptops first.`);
+  if (participants.length < MIN_PARTICIPANTS) throw new Error(notEnough(mode, participants.length));
+  let runner;
+  const dataBytes = {};
+  if (mode === 'dcp') {
+    runner = (await getDcpSession()).withSites(dcpSites(participants));
+  } else if (mode === 'dcpjob') {
+    const sites = simSites(participants);
+    for (const s of sites) dataBytes[s.name] = JSON.stringify(s.data).length;
+    runner = (await getDcpSession()).withSites(sites);
+  } else {
+    runner = createSimRunner(simSites(participants), (e) => emitFn({ ...e, type: 'site', event: e.type }));
   }
-  const runner = mode === 'dcp'
-    ? (await getDcpSession()).withSites(dcpSites(participants))
-    : createSimRunner(simSites(participants), (e) => emitFn({ ...e, type: 'site', event: e.type }));
 
   emitFn({
     type: 'start',
@@ -235,9 +251,9 @@ async function runTraining(mode, emitFn, participants) {
     emitFn({ type: 'cost', dccPerSlice: runner.dccPerSlice, typical: n * 7 * runner.dccPerSlice, ceiling: n * (1 + HYPER_MAX_ROUNDS) * runner.dccPerSlice });
   }
 
-  const tally = { slices: 0, bytesSent: 0, bytesReceived: 0, rows: 0, rawBytes: 0, devices: {} };
+  const tally = { slices: 0, bytesSent: 0, dataBytesSent: 0, bytesReceived: 0, rows: 0, rawBytes: 0, devices: {} };
   const t0 = Date.now();
-  const model = await train({ runner: metered(runner, tally), hyperparameters: HYPER, onEvent: (e) => e.type !== 'done' && emitFn(e) });
+  const model = await train({ runner: metered(runner, tally, dataBytes), hyperparameters: HYPER, onEvent: (e) => e.type !== 'done' && emitFn(e) });
   const durationMs = Date.now() - t0;
 
   const { ref, why } = referenceFor(participants);
@@ -350,7 +366,8 @@ function handle(req, res) {
   if (p === '/') return sendFile(res, path.join(__dirname, 'dashboard', 'index.html'), 'text/html; charset=utf-8');
   if (p === '/config') {
     return sendJson(res, 200, {
-      defaultMode: argv.includes('--dcp') ? 'dcp' : 'sim',
+      defaultMode: argv.includes('--dcp-job') ? 'dcpjob' : argv.includes('--dcp') ? 'dcp' : 'sim',
+      dcpJobGroup: process.env.DCP_ATTACH_KEY ? 'shared compute group' : 'public DCP network',
       joinUrls: joinUrls(),
       participants: registry.list(),
       slots: registry.slots(),
@@ -377,18 +394,14 @@ function handle(req, res) {
   if (req.method === 'POST' && p === '/api/remove') return api(req, res, (b) => ({ ok: registry.remove(b.id) }));
   if (req.method === 'POST' && p === '/train') {
     if (running) return sendJson(res, 409, { error: 'Training is already running' });
-    const mode = url.searchParams.get('mode') === 'dcp' ? 'dcp' : 'sim';
-    const participants = registry.active(mode === 'sim');
+    const mode = ['dcp', 'dcpjob'].includes(url.searchParams.get('mode')) ? url.searchParams.get('mode') : 'sim';
+    const participants = registry.active(mode !== 'dcp');
     running = true;
     return readJson(req)
       .then(async (body) => {
-        if (participants.length < MIN_PARTICIPANTS) {
-          throw Object.assign(new Error(mode === 'dcp'
-            ? `Need at least ${MIN_PARTICIPANTS} laptops online; ${participants.length} joined. Share the join link.`
-            : `Add at least ${MIN_PARTICIPANTS} simulated laptops first.`), { status: 400 });
-        }
-        if (mode === 'dcp') {
-          dcpSites(participants); // fail fast if a laptop has no compute group
+        if (participants.length < MIN_PARTICIPANTS) throw Object.assign(new Error(notEnough(mode, participants.length)), { status: 400 });
+        if (mode !== 'sim') {
+          if (mode === 'dcp') dcpSites(participants); // fail fast if a laptop has no compute group
           // Unlock with the passwords from the page. They are used once and not kept or logged.
           if (!dcpSession) await getDcpSession({ identity: body.identityPassword, payment: body.paymentPassword });
         }

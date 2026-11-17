@@ -24,9 +24,25 @@ npm run demo:dcp       # same, DCP mode selected
 node demo/run.js --cli # terminal only: simulation with the five sample states
 ```
 
+The dashboard has three modes:
+
+| Mode | Where it computes | Where the rows are | Needs |
+|---|---|---|---|
+| **DCP · laptops** | each joined laptop's DCP worker | stay on each laptop | one compute group per laptop (below) |
+| **DCP · data in job** | any DCP worker (public network, or the group in `DCP_ATTACH_KEY`) | sent inside each DCP job | DCP credentials only |
+| **Simulation** | this computer | this computer | nothing |
+
 **Simulation** mode: press **+ Add simulated laptop** in the join panel as many times as you
 like, then **Start training**. Everything runs on this computer with the same events and
 pacing as a real run. Use it to rehearse.
+
+**DCP · data in job** (`npm run demo:dcp-job`): press **+ Add state**, then **Start training**.
+This is real DCP: one job per state per round, paid in DCC. Each state's rows travel inside its job
+(decision 0001), so no compute groups are needed. This is Alex's advice for the showcase (see
+[questions for Alex](../specs/shared/questions-for-alex.md)): show federated training on DCP
+working, and say that in a real deployment the rows would stay on each site, which is what
+**DCP · laptops** does. The dashboard and the results popup say this, and the traffic
+counters include the rows.
 
 ## DCP across laptops (decision 0004)
 
@@ -41,9 +57,12 @@ pacing as a real run. Use it to rehearse.
 ### Why one compute group per laptop
 
 > [!IMPORTANT]
-> DCP training across laptops needs **one DCP compute group for each laptop that joins**.
-> Groups are created by hand in the DCP portal and listed in `demo/devices.json`. Without
-> them, laptops can join the dashboard, but only Simulation mode can train.
+> DCP training across laptops needs **one DCP compute group for each laptop that joins**,
+> listed in `demo/devices.json`. Without them, laptops can join the dashboard, but only
+> Simulation and DCP · data in job can train. As of 2026-11-17 we cannot create groups
+> ourselves: dcp.cloud credential lists only store credentials for groups that already exist.
+> Distributive has to create them (see A1 in
+> [questions for Alex](../specs/shared/questions-for-alex.md)).
 
 - Your DCP password (keystore) decides who deploys and pays for jobs. It does not decide
   which computer runs them. By default any public DCP worker can pick up a job.
@@ -69,7 +88,7 @@ worker runs nothing that isn't attached to it. Ways to remove the manual step ar
 ### One-time setup on the coordinator
 
 1. **Compute groups.** Each laptop that joins needs its own DCP compute group, so its jobs can
-   only run on it. Create a pool of them in the DCP portal (dcp-client has no API to create
+   only run on it. Get a pool of them from Distributive (we cannot create them ourselves; see above; dcp-client has no API to create
    groups), one per laptop you expect, plus spares. Copy `demo/devices.example.json` to
    `demo/devices.json` (gitignored) and list them. The pool size is the most laptops that can
    join at once; add groups to allow more. As a fallback, `DCP_ATTACH_KEY` and
@@ -110,8 +129,9 @@ The agent (`demo/agent.js`, a single file using only Node built-ins) then:
 and later runs read it from there. Do it before the presentation. In real use, pass
 `--data <file>` instead.
 
-The evaluator runs in Node mode (`dcp-evaluator-start -t node`), which `dcp-worker` warns is not
-for production. That is fine for a demo; for anything else, install the native evaluator or
+The evaluator runs in Node mode, which `dcp-worker` warns is not
+for production. `dcp-evaluator-start -t node` alone fails on an npx install (it still looks for
+the native binary), so the agent passes node and dcp-client's `evaluator-node.js` explicitly. That is fine for a demo; for anything else, install the native evaluator or
 the Distributive screensaver.
 
 ### Training

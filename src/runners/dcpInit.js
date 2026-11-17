@@ -16,7 +16,8 @@ const path = require('node:path');
  *
  * passphrases: optional { identity, payment }. When given (e.g. from the dashboard's password
  * dialog) the keystores are unlocked with them and nothing is prompted in the terminal. A wrong
- * passphrase throws a DCP_WA:UNLOCKX error. When omitted, dcp-client prompts in the terminal.
+ * passphrase throws a DCP_WA:UNLOCKX error. When omitted, dcp-client prompts in the terminal,
+ * once for the identity keystore and once for the bank keystore.
  * Passphrases are used once and not stored.
  *
  * Local-worker mode (job.localExec) pays nothing, so it skips the payment keystore.
@@ -57,6 +58,12 @@ async function initDcp({ needPayment = true, passphrases = null } = {}) {
   } else if (passphrases) {
     const idKs = await loadKeystore(wallet, 'id');
     await unlockOrExplain(idKs, passphrases.identity, 'identity (API key)');
+    await identity.set(idKs);
+  } else {
+    // Terminal mode: prompt for the identity password once here. Without this, dcp-client asks
+    // for it again on every job deploy (once per site per round).
+    const idKs = await loadKeystore(wallet, 'id');
+    await idKs.unlock(undefined, UNLOCK_SECONDS);
     await identity.set(idKs);
   }
 

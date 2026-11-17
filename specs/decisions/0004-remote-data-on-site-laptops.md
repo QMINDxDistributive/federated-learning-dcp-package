@@ -76,11 +76,15 @@ Option 2 (Proposed) for the demo's DCP mode. The library keeps both paths: `site
 - Open questions for Distributive (creating groups from code, sending a job to one specific
   worker, browser workers, limiting workers to approved work functions) are tracked in
   [questions-for-alex.md](../shared/questions-for-alex.md).
-- The demo's evaluator runs with `dcp-evaluator-start -t node`, which `dcp-worker` warns is not
+- The demo's evaluator runs in Node mode (`dcp-evaluator-start -t node -e <node> --additional-files=<evaluator-node.js>`), which `dcp-worker` warns is not
   for production. TODO: confirm with Distributive whether to use the native evaluator or the
   Windows screensaver installer on the teammates' laptops instead.
 - TODO: confirm with Distributive that `RemoteDataSet` URLs on `localhost` are fetched by the
   worker as expected end to end. This is tested locally (site agent and work function), but
   not yet on DCP.
+- 2026-11-17: blocked on compute groups. We cannot create them (dcp.cloud credential lists only
+  store credentials for existing groups), so Distributive has to (A1). Per Alex's advice, the demo
+  also has a **DCP · data in job** mode (0001 path, public network) for the showcase; this
+  decision's mode stays as the "real deployment" story until the groups exist.
 - Once accepted, R6 and R7 hold for the demo's DCP mode, and the shared plan's "DCP remote
   data", "Compute groups" and "Worker setup script" sections can link here.
