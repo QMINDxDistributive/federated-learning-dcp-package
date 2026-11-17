@@ -4,265 +4,344 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Federated Learning on DCP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0b0f1a; --panel: #121829; --panel-2: #182036; --line: #263052; --line-2: #34406a;
-    --text: #e8ecf8; --muted: #8a93b2; --dim: #5d6688;
-    --accent: #5b8cff; --accent-soft: rgba(91, 140, 255, .18);
-    --good: #3ecf8e; --good-soft: rgba(62, 207, 142, .16);
-    --warn: #f5b942; --warn-soft: rgba(245, 185, 66, .16); --bad: #ff6b6b;
-    --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+    --bg: #f6f6f7;
+    --surface: #ffffff;
+    --surface-2: #fafafa;
+    --border: #e6e6e9;
+    --border-strong: #d4d4d8;
+    --text: #18181b;
+    --text-2: #3f3f46;
+    --muted: #71717a;
+    --faint: #a1a1aa;
+    --accent: #2563eb;
+    --accent-soft: #eff4ff;
+    --good: #059669;
+    --good-soft: #ecfdf5;
+    --data: #d97706;
+    --data-soft: #fff7ed;
+    --bad: #dc2626;
+    --bad-soft: #fef2f2;
+    --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .06);
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  button { font: inherit; }
 
-  header { display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-  h1 { font-size: 20px; margin: 0; flex: 1; min-width: 260px; letter-spacing: -.01em; }
-  h1 small { display: block; color: var(--muted); font-size: 13px; font-weight: 400; margin-top: 2px; }
-  .toggle { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .toggle button { background: none; border: 0; color: var(--muted); padding: 9px 14px; font: inherit; cursor: pointer; }
-  .toggle button.on { background: var(--line); color: var(--text); }
-  .btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 10px 24px; font: 600 15px system-ui; cursor: pointer; }
-  .btn:disabled { opacity: .45; cursor: default; }
-  .btn.ghost { background: none; border: 1px solid var(--line-2); color: var(--text); }
+  /* ---- top bar ---- */
+  header {
+    height: 60px; flex: none; display: flex; align-items: center; gap: 20px;
+    padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+  .brand .mark { width: 28px; height: 28px; border-radius: 7px; background: var(--text); display: grid; place-items: center; flex: none; }
+  .brand h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; }
+  .brand .sub { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .brand .sep { width: 1px; height: 18px; background: var(--border); flex: none; }
+  .seg { display: flex; padding: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+  .seg button {
+    border: 0; background: none; color: var(--muted); padding: 5px 12px; border-radius: 6px;
+    font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+  body.training .seg button:not(.on) { opacity: .5; cursor: default; }
+  .btn {
+    background: var(--text); color: #fff; border: 0; border-radius: 8px; padding: 8px 16px;
+    font-size: 13.5px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn:hover { background: #27272a; }
+  .btn:disabled { background: var(--border-strong); cursor: default; }
+  .btn.ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); }
+  .btn.ghost:hover { background: var(--surface-2); }
 
-  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
-  .stage { position: relative; display: flex; flex-direction: column; min-height: 0; padding: 16px 20px 12px; }
-  .phase { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; min-height: 28px; }
-  .phase .round { font: 600 13px var(--mono); color: var(--accent); background: var(--accent-soft); padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
-  .phase .text { color: var(--muted); }
-  .phase .text b { color: var(--text); font-weight: 600; }
-  #diagram { flex: 1; width: 100%; min-height: 380px; }
-  .banner { margin-top: 8px; padding: 10px 14px; border-radius: 8px; background: rgba(255, 107, 107, .12); border: 1px solid rgba(255, 107, 107, .4); color: #ffc2c2; font-size: 14px; display: none; }
+  /* ---- layout ---- */
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; padding: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  .stage { position: relative; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .status {
+    display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); min-height: 52px;
+  }
+  .status .pill {
+    font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+    background: var(--bg); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap;
+  }
+  body.training .status .pill { background: var(--accent-soft); color: var(--accent); border-color: #d6e2ff; }
+  .status .text { color: var(--muted); font-size: 13.5px; flex: 1; min-width: 0; }
+  .metrics { display: flex; gap: 22px; flex: none; }
+  .metric .l { font-size: 11px; color: var(--faint); line-height: 1.2; }
+  .metric .v { font: 500 14px var(--mono); color: var(--text); display: flex; align-items: center; gap: 8px; line-height: 1.4; }
+  .metric .spark { width: 64px; height: 18px; }
+  .status .text b { color: var(--text); font-weight: 500; }
+  #diagram { flex: 1; width: 100%; min-height: 0; display: block; }
+  .banner {
+    position: absolute; left: 20px; right: 20px; bottom: 16px; padding: 10px 14px; border-radius: 8px;
+    background: var(--bad-soft); border: 1px solid #fecaca; color: #991b1b; font-size: 13px; display: none;
+  }
   .banner.show { display: block; }
 
-  aside { border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
-  aside section { padding: 14px 18px; border-bottom: 1px solid var(--line); }
-  aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
-  .counters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .counter .v { font: 600 20px var(--mono); }
-  .counter .l { color: var(--muted); font-size: 12px; }
-  .counter.kept .v { color: var(--good); }
-  .counter.sent .v { color: var(--accent); }
-  .weights .w { display: grid; grid-template-columns: 112px 1fr 54px; gap: 8px; align-items: center; font-size: 12.5px; margin: 5px 0; }
-  .weights .w .n { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .weights .w .v { font-family: var(--mono); text-align: right; color: var(--muted); }
-  .weights .track { position: relative; height: 10px; background: var(--panel-2); border-radius: 3px; }
-  .weights .track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--line-2); }
-  .weights .fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; transition: left .7s, width .7s, background .3s; }
-  .weights .empty { color: var(--dim); font-size: 13px; }
-  .feed-wrap { flex: 1; min-height: 160px; display: flex; flex-direction: column; border-bottom: 0 !important; }
-  #feed { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; font-size: 12.5px; }
-  #feed li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; padding: 5px 0; border-bottom: 1px solid rgba(38, 48, 82, .6); animation: feedIn .35s ease-out; }
-  #feed li .i { font-family: var(--mono); text-align: center; }
-  #feed li .b { color: var(--muted); }
-  #feed li .b b { color: var(--text); font-weight: 600; text-transform: capitalize; }
-  #feed li .b code { font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
-  #feed li.out .i { color: var(--accent); }
-  #feed li.in .i { color: var(--good); }
-  #feed li.local .i { color: var(--warn); }
-  #feed li.coord .i { color: #c9a7ff; }
-  #feed li.err .i, #feed li.err .b { color: var(--bad); }
-  @keyframes feedIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  /* ---- sidebar ---- */
+  aside { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  aside .card { padding: 14px 16px; }
+  aside h2 { margin: 0 0 10px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .02em; display: flex; justify-content: space-between; align-items: baseline; }
+  aside h2 span { font-weight: 500; color: var(--faint); }
 
-  /* ---- diagram ---- */
-  svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  .link { fill: none; stroke: var(--line); stroke-width: 2; }
-  .link.live { stroke: var(--line-2); }
-  .link.lane { stroke-width: 1.5; stroke-dasharray: 2 4; }
-  .node-box { fill: var(--panel); stroke: var(--line-2); stroke-width: 1.5; transition: stroke .3s, fill .3s; }
-  .node-title { fill: var(--text); font-size: 16px; font-weight: 650; }
-  .node-sub { fill: var(--muted); font-size: 11.5px; }
-  .node-status { fill: var(--accent); font-size: 12px; font-family: var(--mono); }
-  .coord.busy .node-box { stroke: #c9a7ff; fill: #1a1832; }
-  .coord.busy .node-status { fill: #c9a7ff; }
-  .sched .node-box { fill: var(--panel-2); }
-  .sched-badge circle { fill: var(--accent); }
-  .sched-badge text { fill: #fff; font-size: 11px; font-weight: 700; }
-  .wstrip rect { transition: y .7s, height .7s, fill .3s; }
-
-  .laptop { transition: opacity .6s; }
-  .laptop .screen { fill: var(--panel); stroke: var(--line-2); stroke-width: 1.5; stroke-dasharray: 5 4; transition: stroke .3s; }
-  .laptop .display { fill: #0d1322; }
-  .laptop .base { fill: var(--panel-2); stroke: var(--line-2); stroke-width: 1.2; }
-  .laptop .st-name { fill: var(--text); font-size: 15px; font-weight: 650; text-transform: capitalize; }
-  .laptop .st-dev { fill: var(--dim); font-size: 11px; font-family: var(--mono); }
-  .laptop .st-status { fill: var(--muted); font-size: 11.5px; }
-  .laptop .loop { stroke: var(--line-2); stroke-width: 1.5; stroke-dasharray: 3 3; }
-  .laptop .loop-l { fill: var(--dim); font-size: 10px; font-family: var(--mono); }
-  .laptop .db { fill: var(--panel-2); stroke: var(--warn); stroke-opacity: .5; stroke-width: 1.3; transition: fill .3s, stroke-opacity .3s; }
-  .laptop .db-l { fill: var(--muted); font-size: 11.5px; }
-  .laptop .db-l2 { fill: var(--dim); font-size: 10.5px; }
-  .laptop.ghost { opacity: .38; }
-  .laptop.online .screen { stroke-dasharray: none; }
-  .laptop.working .screen { stroke: var(--accent); }
-  .laptop.working .st-status { fill: var(--accent); }
-  .laptop.reading .db { fill: var(--warn-soft); stroke-opacity: 1; }
-  .laptop.reading .st-status { fill: var(--warn); }
-  .laptop.sent .screen { stroke: var(--good); }
-  .laptop.sent .st-status { fill: var(--good); }
-  .laptop.failed .screen { stroke: var(--bad); }
-  .laptop.failed .st-status { fill: var(--bad); }
-  .ripple { fill: none; stroke: var(--good); stroke-width: 2; }
-
-  .packet rect { rx: 6; }
-  .packet.out rect { fill: var(--accent); }
-  .packet.in rect { fill: var(--good); }
-  .packet text { fill: #fff; font: 600 11px var(--mono); }
-  .packet.in text { fill: #06281a; }
-  .rowdot { fill: var(--warn); }
-
-  /* ---- dialogs ---- */
-  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line-2); border-radius: 14px; padding: 0; }
-  dialog::backdrop { background: rgba(4, 6, 14, .72); backdrop-filter: blur(2px); }
-  #pw { width: min(420px, calc(100vw - 32px)); padding: 24px; }
-  #pw h3 { margin: 0 0 6px; font-size: 20px; }
-  #pw p { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
-  #pw label { display: block; font-size: 14px; margin: 12px 0 6px; }
-  #pw input[type=password] { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; }
-  #pw input.bad { border-color: var(--bad); }
-  #pw .check { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 14px; margin-top: 12px; }
-  .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
-  #pw .msg { color: var(--bad); font-size: 14px; min-height: 18px; margin-top: 12px; }
-
-  #results { width: min(1040px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
-  #results[open] { animation: pop .35s cubic-bezier(.2, .9, .3, 1.2); }
-  @keyframes pop { from { opacity: 0; transform: scale(.94) translateY(10px); } to { opacity: 1; transform: none; } }
-  .r-head { padding: 22px 26px 14px; border-bottom: 1px solid var(--line); display: flex; gap: 14px; align-items: center; }
-  .r-head .tick { width: 40px; height: 40px; border-radius: 50%; background: var(--good-soft); color: var(--good); display: grid; place-items: center; font-size: 22px; flex: none; }
-  .r-head h3 { margin: 0; font-size: 21px; }
-  .r-head p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
-  .r-grid { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 0; }
-  .r-card { padding: 18px 22px; border-right: 1px solid var(--line); min-width: 0; }
-  .r-card:last-child { border-right: 0; }
-  .r-card h4 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-  .r-card .sub { color: var(--dim); font-size: 12.5px; margin-bottom: 14px; }
-  .bar-row { display: grid; grid-template-columns: 136px 1fr 48px; align-items: center; gap: 8px; margin: 7px 0; font-size: 13.5px; }
-  .bar-row .n { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bar-row .n small { color: var(--dim); }
-  .bar-row .v { font-family: var(--mono); text-align: right; }
-  .bar { height: 18px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
-  .bar > div { height: 100%; width: 0; background: var(--line-2); transition: width 1s cubic-bezier(.2, .8, .2, 1); }
-  .bar-row.fed .n { color: var(--text); font-weight: 700; }
-  .bar-row.fed .bar > div { background: var(--good); }
-  .bar-row.fed .v { color: var(--good); font-weight: 700; }
-  .lift { margin-top: 12px; font-size: 13px; color: var(--muted); }
-  .lift b { color: var(--good); }
-  .match-big { font: 700 34px var(--mono); color: var(--good); line-height: 1.1; }
-  .match-l { color: var(--muted); font-size: 13px; margin: 4px 0 12px; }
-  details { font-size: 12.5px; }
-  summary { cursor: pointer; color: var(--accent); }
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 8px; }
-  th, td { text-align: right; padding: 4px 4px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 11.5px; }
-  th:first-child, td:first-child { text-align: left; font-family: inherit; }
-  th { color: var(--muted); font-weight: 500; }
-  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
-  .stat .v { font: 600 19px var(--mono); }
-  .stat .l { font-size: 12px; color: var(--muted); }
-  .stat.wide { grid-column: span 2; }
-  .ratio { height: 8px; border-radius: 4px; background: var(--good-soft); overflow: hidden; margin-top: 6px; display: flex; }
-  .ratio div { background: var(--accent); }
-  .devices { margin-top: 14px; font-size: 12px; color: var(--muted); }
-  .devices div { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
-  .devices span:first-child { text-transform: capitalize; }
-  .devices span:last-child { font-family: var(--mono); color: var(--text); }
-  .r-foot { padding: 14px 22px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .r-foot .note { color: var(--dim); font-size: 12px; max-width: 640px; }
-
-  /* ---- join panel ---- */
-  .join-row { display: flex; gap: 14px; align-items: flex-start; }
-  .qr { width: 132px; height: 132px; flex: none; background: #fff; border-radius: 8px; padding: 4px; display: grid; place-items: center; }
+  .join { display: flex; gap: 14px; }
+  .qr { width: 84px; height: 84px; flex: none; border: 1px solid var(--border); border-radius: 8px; padding: 4px; display: grid; place-items: center; background: #fff; }
   .qr svg { width: 100%; height: 100%; display: block; }
-  .qr span { color: #333; font-size: 11px; text-align: center; }
-  .join-info { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-  .join-link { font: 12px var(--mono); color: var(--accent); word-break: break-all; text-decoration: none; }
+  .qr span { color: var(--faint); font-size: 10.5px; text-align: center; line-height: 1.3; }
+  .join-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .join-info .t { font-weight: 600; font-size: 13.5px; }
+  .join-link { font: 12px var(--mono); color: var(--accent); text-decoration: none; word-break: break-all; line-height: 1.4; }
   .join-link:hover { text-decoration: underline; }
-  .join-btns { display: flex; gap: 6px; flex-wrap: wrap; }
-  .mini { background: none; border: 1px solid var(--line-2); color: var(--text); border-radius: 6px; padding: 5px 10px; font: 13px system-ui; cursor: pointer; }
-  .mini:hover { border-color: var(--accent); }
-  .mini.add { border-color: var(--accent); color: var(--accent); align-self: flex-start; }
-  .join-count { color: var(--muted); font-size: 12.5px; }
-  .join-pending { color: var(--warn); font-size: 12px; }
+  .join-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: auto; }
+  .mini {
+    border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-2);
+    border-radius: 6px; padding: 3px 9px; font-size: 12px; font-weight: 500; cursor: pointer;
+  }
+  .mini:hover { background: var(--surface-2); color: var(--text); }
+  .join-count { color: var(--muted); font-size: 12px; }
+  .join-pending { color: var(--data); font-size: 12px; }
   .join-pending:empty { display: none; }
 
-  .empty-slot rect { fill: none; stroke: var(--line-2); stroke-width: 1.5; stroke-dasharray: 6 5; }
-  .empty-title { fill: var(--text); font-size: 17px; font-weight: 600; }
-  .empty-sub { fill: var(--muted); font-size: 13px; }
-  .laptop.offline { opacity: .4; }
-  .laptop.offline .screen { stroke: var(--bad); stroke-dasharray: 5 4; }
-  .laptop .kick { opacity: 0; cursor: pointer; transition: opacity .2s; }
-  .laptop .kick circle { fill: var(--panel-2); stroke: var(--line-2); }
-  .laptop .kick text { fill: var(--muted); font-size: 14px; }
-  body:not(.training) .laptop:hover .kick { opacity: 1; }
-  .laptop .kick:hover circle { stroke: var(--bad); }
-  .laptop .kick:hover text { fill: var(--bad); }
+  .spark { display: block; }
+  .spark .area { fill: var(--accent-soft); }
+  .spark .line { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+  .spark .pt { fill: var(--accent); }
+  .spark .none { fill: var(--faint); font: 11px var(--sans); }
+
+  .weights .w { display: grid; grid-template-columns: 100px 1fr 52px; gap: 10px; align-items: center; font-size: 12px; height: 17px; }
+  .weights .w .n { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .weights .w .v { font: 11.5px var(--mono); text-align: right; color: var(--muted); }
+  .weights .track { position: relative; height: 6px; background: var(--bg); border-radius: 3px; }
+  .weights .track::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--border-strong); }
+  .weights .fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; transition: left .7s, width .7s; }
+  .weights .fill.pos { background: var(--accent); }
+  .weights .fill.neg { background: #f59e8b; }
+  .empty-note { color: var(--faint); font-size: 12.5px; }
+
+  .log { flex: 1; min-height: 160px; display: flex; flex-direction: column; padding-bottom: 6px !important; }
+  #feed { list-style: none; margin: 0 -16px; padding: 0; overflow-y: auto; flex: 1; }
+  #feed li {
+    display: grid; grid-template-columns: 54px 6px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+    padding: 4px 16px; font-size: 12.5px; color: var(--text-2); animation: feedIn .3s ease-out;
+  }
+  #feed li:hover { background: var(--surface-2); }
+  #feed .tm { font: 11px var(--mono); color: var(--faint); }
+  #feed .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
+  #feed .msg { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #feed .msg b { font-weight: 600; color: var(--text); text-transform: capitalize; }
+  #feed .meta { font: 11px var(--mono); color: var(--faint); white-space: nowrap; }
+  #feed li.out .dot { background: var(--accent); }
+  #feed li.in .dot { background: var(--good); }
+  #feed li.local .dot { background: var(--data); }
+  #feed li.coord .dot { background: var(--text); }
+  #feed li.join .dot { background: var(--good); }
+  #feed li.err .dot { background: var(--bad); }
+  #feed li.err .msg { color: var(--bad); }
+  @keyframes feedIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ---- diagram ---- */
+  svg text { font-family: var(--sans); }
+  .wire { fill: none; stroke: var(--border-strong); stroke-width: 1.25; }
+  .wire.live { stroke: #c4c4cc; }
+  .hub rect.box { fill: var(--surface); stroke: var(--border-strong); stroke-width: 1; transition: stroke .3s; }
+  .hub .h-title { font-size: 14px; font-weight: 600; fill: var(--text); }
+  .hub .h-sub { font-size: 11.5px; fill: var(--muted); }
+  .hub.busy rect.box { stroke: var(--text); }
+  .hub .ic { fill: none; stroke: var(--text); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .sched rect.box { fill: var(--surface-2); }
+  .tag { font-size: 10.5px; font-weight: 500; fill: var(--faint); letter-spacing: .04em; }
+
+  .machine { transition: opacity .4s; }
+  .machine .mon { fill: var(--surface); stroke: var(--text-2); stroke-width: 1.5; transition: stroke .25s, fill .25s; }
+  .machine .scr { fill: var(--surface-2); transition: fill .25s; }
+  .machine .stand { fill: none; stroke: var(--text-2); stroke-width: 1.5; stroke-linecap: round; transition: stroke .25s; }
+  .machine .db { fill: var(--surface); stroke: var(--data); stroke-width: 1.4; transition: fill .25s; }
+  .machine .m-name { font-size: 13.5px; font-weight: 600; fill: var(--text); text-transform: capitalize; }
+  .machine .m-rows { font-size: 12px; fill: var(--muted); font-family: var(--mono); }
+  .machine .m-status { font-size: 11.5px; fill: var(--faint); }
+  .machine .glyph { font-size: 15px; font-weight: 600; text-anchor: middle; }
+  .machine.working .mon, .machine.working .stand { stroke: var(--accent); }
+  .machine.working .scr { fill: var(--accent-soft); }
+  .machine.working .m-status { fill: var(--accent); }
+  .machine.reading .db { fill: var(--data-soft); }
+  .machine.reading .m-status { fill: var(--data); }
+  .machine.sent .mon, .machine.sent .stand { stroke: var(--good); }
+  .machine.sent .scr { fill: var(--good-soft); }
+  .machine.sent .m-status { fill: var(--good); }
+  .machine.failed .mon, .machine.failed .stand { stroke: var(--bad); }
+  .machine.failed .m-status { fill: var(--bad); }
+  .machine.ghost { opacity: .45; }
+  .machine.offline { opacity: .4; }
+  .machine.offline .mon { stroke-dasharray: 4 3; }
+  .machine .kick { opacity: 0; cursor: pointer; transition: opacity .15s; }
+  .machine .kick circle { fill: var(--surface); stroke: var(--border-strong); }
+  .machine .kick path { stroke: var(--muted); stroke-width: 1.4; stroke-linecap: round; }
+  body:not(.training) .machine:hover .kick { opacity: 1; }
+  .machine .kick:hover circle { stroke: var(--bad); }
+  .machine .kick:hover path { stroke: var(--bad); }
+
+  .packet rect { rx: 9; }
+  .packet.out rect { fill: var(--accent); }
+  .packet.in rect { fill: var(--good); }
+  .packet text { fill: #fff; font: 600 10.5px var(--mono); }
+  .rowdot { fill: var(--data); }
+
+  .empty-slot rect { fill: none; stroke: var(--border-strong); stroke-width: 1.25; stroke-dasharray: 5 5; }
+  .empty-title { fill: var(--text); font-size: 14px; font-weight: 600; }
+  .empty-sub { fill: var(--muted); font-size: 12.5px; }
+
+  /* ---- dialogs ---- */
+  dialog { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 14px; padding: 0; box-shadow: 0 24px 48px -12px rgba(16, 24, 40, .18); }
+  dialog::backdrop { background: rgba(24, 24, 27, .32); backdrop-filter: blur(2px); }
+  #pw { width: min(420px, calc(100vw - 32px)); padding: 24px; }
+  #pw h3 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+  #pw p { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; }
+  #pw label { display: block; font-size: 13px; font-weight: 500; margin: 12px 0 6px; }
+  #pw input[type=password] { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; }
+  #pw input[type=password]:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  #pw input.bad { border-color: var(--bad); }
+  #pw .check { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; font-weight: 400; margin-top: 12px; }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+  #pw .msg { color: var(--bad); font-size: 13px; min-height: 18px; margin-top: 10px; }
+
+  #results { width: min(1000px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+  #results[open] { animation: pop .25s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .r-head { padding: 22px 24px 18px; border-bottom: 1px solid var(--border); }
+  .r-head .eyebrow { font-size: 12px; font-weight: 600; color: var(--good); display: flex; align-items: center; gap: 6px; }
+  .r-head h3 { margin: 4px 0 2px; font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
+  .r-head p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .r-grid { display: grid; grid-template-columns: 1.25fr 1fr 1fr; }
+  .r-card { padding: 20px 24px; border-right: 1px solid var(--border); min-width: 0; }
+  .r-card:last-child { border-right: 0; }
+  .r-card h4 { margin: 0; font-size: 13.5px; font-weight: 600; }
+  .r-card .sub { color: var(--muted); font-size: 12.5px; margin: 2px 0 16px; }
+  .bar-row { display: grid; grid-template-columns: 128px 1fr 44px; align-items: center; gap: 10px; margin: 8px 0; font-size: 13px; }
+  .bar-row .n { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-row .v { font: 12.5px var(--mono); text-align: right; color: var(--muted); }
+  .bar { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: var(--border-strong); border-radius: 4px; transition: width .9s cubic-bezier(.2, .8, .2, 1); }
+  .bar-row.fed .n { color: var(--text); font-weight: 600; }
+  .bar-row.fed .bar > div { background: var(--accent); }
+  .bar-row.fed .v { color: var(--text); font-weight: 500; }
+  .lift { margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+  .lift b { color: var(--text); font-weight: 600; }
+  .match-big { font: 500 30px var(--mono); color: var(--text); line-height: 1.1; letter-spacing: -.02em; }
+  .match-l { color: var(--muted); font-size: 12.5px; margin: 6px 0 12px; }
+  details { font-size: 12.5px; }
+  summary { cursor: pointer; color: var(--accent); font-weight: 500; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 8px; }
+  th, td { text-align: right; padding: 4px; border-bottom: 1px solid var(--border); font: 11.5px var(--mono); }
+  th:first-child, td:first-child { text-align: left; font-family: var(--sans); }
+  th { color: var(--muted); font-weight: 500; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+  .stat .v { font: 500 16px var(--mono); }
+  .stat .l { font-size: 12px; color: var(--muted); }
+  .stat.wide { grid-column: span 2; }
+  .ratio { height: 6px; border-radius: 3px; background: var(--data-soft); overflow: hidden; margin-top: 6px; display: flex; }
+  .ratio div { background: var(--accent); }
+  .devices { margin-top: 16px; font-size: 12px; color: var(--muted); }
+  .devices div { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+  .devices span:first-child { text-transform: capitalize; }
+  .devices span:last-child { font-family: var(--mono); color: var(--text-2); }
+  .r-foot { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface-2); border-radius: 0 0 14px 14px; }
+  .r-foot .note { color: var(--muted); font-size: 12px; max-width: 620px; }
 
   @media (max-width: 1100px) {
+    body { overflow: auto; }
     main { grid-template-columns: 1fr; }
-    aside { border-left: 0; border-top: 1px solid var(--line); }
-    .feed-wrap { max-height: 320px; }
+    .stage { min-height: 520px; }
+    .log { max-height: 360px; }
     .r-grid { grid-template-columns: 1fr; }
-    .r-card { border-right: 0; border-bottom: 1px solid var(--line); }
+    .r-card { border-right: 0; border-bottom: 1px solid var(--border); }
+    .brand .sub, .brand .sep { display: none; }
   }
-  @media (max-width: 600px) {
-    header { padding: 12px 16px; }
-    .stage { padding: 12px 16px; }
+  @media (max-width: 640px) {
+    header { height: auto; flex-wrap: wrap; padding: 12px 16px; gap: 10px; }
+    main { padding: 12px 16px; }
+    .seg { order: 3; width: 100%; overflow-x: auto; }
+    .status { flex-wrap: wrap; }
+    .status .text { flex-basis: calc(100% - 90px); }
+    .metrics { width: 100%; }
   }
 </style>
 <script id="qrlib" async src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 </head>
 <body>
 <header>
-  <h1>One arthritis model, many laptops, no pooled data
-    <small>Federated Newton logistic regression on the Distributive Compute Platform &middot; CDC BRFSS 2024</small></h1>
-  <div class="toggle" role="group" aria-label="Run mode">
-    <button data-mode="dcp" title="Each laptop's rows stay on it; needs one compute group per laptop">DCP &middot; laptops</button>
-    <button data-mode="dcpjob" title="Real DCP; each state's rows are sent inside its job (demo stand-in for local data)">DCP &middot; data in job</button>
-    <button data-mode="sim">Simulation</button>
+  <div class="brand">
+    <div class="mark" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round">
+        <circle cx="8" cy="3" r="1.6"/><circle cx="3" cy="13" r="1.6"/><circle cx="13" cy="13" r="1.6"/>
+        <path d="M7.2 4.4 3.8 11.6M8.8 4.4l3.4 7.2"/>
+      </svg>
+    </div>
+    <h1>Federated Learning on DCP</h1>
+    <div class="sep"></div>
+    <div class="sub">Arthritis risk · logistic regression · CDC BRFSS 2024</div>
+  </div>
+  <div class="seg" role="group" aria-label="Run mode">
+    <button data-mode="dcp" title="Each machine's rows stay on it; needs one compute group per machine">DCP · machines</button>
+    <button data-mode="dcpjob" title="Real DCP; each state's rows are sent inside its job (demo stand-in for local data)">DCP · data in job</button>
+    <button data-mode="sim" title="Everything runs on this computer">Simulation</button>
   </div>
   <button class="btn" id="train">Start training</button>
 </header>
 
 <main>
-  <div class="stage">
-    <div class="phase"><span class="round" id="phaseRound">Ready</span><span class="text" id="phaseText">Each state's data lives on its own laptop. Press <b>Start training</b>.</span></div>
-    <svg id="diagram" viewBox="0 0 1000 610" preserveAspectRatio="xMidYMin meet" role="img" aria-label="Live diagram of the federated training system"></svg>
+  <section class="card stage">
+    <div class="status">
+      <span class="pill" id="phaseRound">Ready</span><span class="text" id="phaseText"></span>
+      <div class="metrics">
+        <div class="metric"><div class="l">Loss</div><div class="v"><svg class="spark" id="spark" viewBox="0 0 300 36" preserveAspectRatio="none"></svg><span id="tLoss">–</span></div></div>
+        <div class="metric"><div class="l">DCP jobs</div><div class="v" id="tJobs">0</div></div>
+        <div class="metric"><div class="l">Cost</div><div class="v" id="tCost">–</div></div>
+      </div>
+    </div>
+    <svg id="diagram" viewBox="0 8 1000 512" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Live diagram of the federated training system"></svg>
     <div class="banner" id="banner"></div>
-  </div>
+  </section>
 
   <aside>
-    <section class="join">
-      <h2>Join with your laptop</h2>
-      <div class="join-row">
+    <section class="card">
+      <h2>Join from another machine</h2>
+      <div class="join">
         <div class="qr" id="qr" aria-label="QR code for the join link"></div>
         <div class="join-info">
           <a id="joinLink" class="join-link" target="_blank" rel="noopener"></a>
-          <div class="join-btns">
-            <button class="mini" id="joinCopy">Copy link</button>
-            <button class="mini" id="joinPick" hidden title="This computer has several network addresses; try the next one">Other address</button>
-          </div>
           <div class="join-count" id="joinCount"></div>
           <div class="join-pending" id="joinPending"></div>
-          <button class="mini add" id="simAdd" hidden>+ Add simulated laptop</button>
+          <div class="join-row">
+            <button class="mini" id="joinCopy">Copy link</button>
+            <button class="mini" id="joinPick" hidden title="This computer has several network addresses; try the next one">Other address</button>
+            <button class="mini" id="simAdd" hidden>+ Add</button>
+          </div>
         </div>
       </div>
     </section>
-    <section>
-      <h2>Traffic</h2>
-      <div class="counters">
-        <div class="counter sent"><div class="v" id="cSent">0 B</div><div class="l">model numbers over the network</div></div>
-        <div class="counter kept"><div class="v" id="cKept">&mdash;</div><div class="l" id="cKeptL">rows read locally, never sent</div></div>
-        <div class="counter"><div class="v" id="cJobs">0</div><div class="l">DCP jobs</div></div>
-        <div class="counter"><div class="v" id="cLoss">&mdash;</div><div class="l">training loss</div></div>
-      </div>
+
+    <section class="card">
+      <h2>Model weights <span>sent each round</span></h2>
+      <div id="weights" class="weights"><div class="empty-note">Shown after round 0.</div></div>
     </section>
-    <section class="weights">
-      <h2>Model weights the coordinator sends</h2>
-      <div id="weights"><div class="empty">Appear after round 0, when the laptops have reported their feature names.</div></div>
-    </section>
-    <section class="feed-wrap">
-      <h2>On the wire</h2>
+
+    <section class="card log">
+      <h2>Activity <span id="feedCount"></span></h2>
       <ul id="feed"></ul>
     </section>
   </aside>
@@ -271,7 +350,7 @@
 <dialog id="pw">
   <form id="pwForm" method="dialog">
     <h3>Unlock DCP</h3>
-    <p>Your keystores in ~/.dcp are unlocked on this laptop for this session. Passwords go only to the local demo server and are not saved.</p>
+    <p>Unlocks your keystores in ~/.dcp for this session. Passwords go only to the local demo server and are not saved.</p>
     <div id="pwIdWrap">
       <label for="pwId">API key (identity) password</label>
       <input type="password" id="pwId" autocomplete="off">
@@ -291,8 +370,12 @@
 
 <dialog id="results" aria-labelledby="rTitle">
   <div class="r-head">
-    <div class="tick">&#10003;</div>
-    <div><h3 id="rTitle">Training complete</h3><p id="rSub"></p></div>
+    <div class="eyebrow">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg>
+      Training complete
+    </div>
+    <h3 id="rTitle">Training complete</h3>
+    <p id="rSub"></p>
   </div>
   <div class="r-grid">
     <div class="r-card">
@@ -304,13 +387,13 @@
     <div class="r-card">
       <h4>Same model as pooling the data</h4>
       <div class="sub">Compared with scikit-learn trained on all rows in one place</div>
-      <div class="match-big" id="rDiff">&mdash;</div>
+      <div class="match-big" id="rDiff">–</div>
       <div class="match-l" id="rDiffL">largest coefficient difference</div>
       <div class="match-l" id="rPooledAuc"></div>
       <details><summary>Show coefficients</summary><div id="rCoefs"></div></details>
     </div>
     <div class="r-card">
-      <h4>Run stats</h4>
+      <h4>Run</h4>
       <div class="sub" id="rModeSub"></div>
       <div class="stats-grid" id="rStats"></div>
       <div class="devices" id="rDevices"></div>
@@ -335,19 +418,18 @@
 
   var FEATURE_LABELS = {
     ageGroup: 'Age group', female: 'Female', bmi: 'BMI', currentSmoker: 'Current smoker', formerSmoker: 'Former smoker',
-    exercise: 'Exercises', diabetes: 'Diabetes', generalHealth: 'General health', education: 'Education', incomeGroup: 'Income group'
+    exercise: 'Exercises', diabetes: 'Diabetes', generalHealth: 'General health', education: 'Education', incomeGroup: 'Income'
   };
 
   var mode = 'dcp';
   var config = null;
-  var sites = [];          // [{ name, port }]
+  var sites = [];          // participants drawn in the diagram
   var L = {};              // per-site diagram elements and state
   var queues = {};         // per-site animation chains
   var gate = Promise.resolve();
   var featureNames = null;
-  var counters = { sent: 0, jobs: 0, rows: 0, kept: 0 };
+  var run = { jobs: 0, dcc: null, losses: [] };
   var maxRounds = 10;
-  var lastDone = null;
 
   // ---------- helpers ----------
   function el(tag, attrs, parent) {
@@ -357,8 +439,9 @@
     return e;
   }
   function txt(tag, attrs, text, parent) { var e = el(tag, attrs, parent); e.textContent = text; return e; }
-  function nice(name) { return name.replace(/-/g, ' '); }
+  function nice(name) { return String(name).replace(/-/g, ' '); }
   function title(name) { return nice(name).replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
+  function esc(s) { var d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
   function fmtBytes(b) {
     if (b < 1024) return Math.round(b) + ' B';
     if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
@@ -366,160 +449,147 @@
   }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   function ease(t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
-  function dParams() { return featureNames ? featureNames.length + 1 : 11; }
-  function inboundNumbers(stage) {
-    var d = dParams();
-    return stage === 'stats' ? (featureNames ? featureNames.length * 2 + 3 : 23) : d + d * (d + 1) / 2 + 2;
-  }
+  function clock() { var d = new Date(); return [d.getHours(), d.getMinutes(), d.getSeconds()].map(function (n) { return (n < 10 ? '0' : '') + n; }).join(':'); }
+  function dataInJob() { return mode === 'dcpjob'; }
+  function noun(n) { return (dataInJob() ? 'state' : 'machine') + (n === 1 ? '' : 's'); }
 
   // ---------- diagram ----------
-  var COORD = { x: 500, y: 20, w: 340, h: 112 };
-  var SCHED = { x: 500, y: 222, w: 300, h: 60 };
-  var LAPTOP_TOP = 372;
+  var COORD = { x: 500, y: 28, w: 280, h: 72 };
+  var SCHED = { x: 500, y: 196, w: 200, h: 44 };
+  var M_TOP = 340;          // top of each machine's monitor
   var layer = {};
 
-  /** Laptop positions and size for any number of laptops: one row, shrinking past five. */
+  /** Machine positions and size for any number of machines: one row, shrinking past six. */
   function layoutFor(n) {
-    var scale = n <= 5 ? 1 : Math.max(0.45, 5 / n);
-    var gap = n <= 1 ? 0 : Math.min(200, 820 / (n - 1));
+    var gap = n <= 1 ? 0 : Math.min(160, 880 / (n - 1));
+    var scale = n <= 6 ? 1 : Math.max(0.55, Math.min(1, gap / 108));
     return {
       scale: scale,
       x: function (k) { return 500 + (k - (n - 1) / 2) * gap; },
-      lane: function (k) { return 500 + (k - (n - 1) / 2) * (n <= 1 ? 0 : Math.min(58, 270 / (n - 1))); },
-      fan: function (k) { return 500 + (k - (n - 1) / 2) * (n <= 1 ? 0 : Math.min(34, 250 / (n - 1))); }
+      lane: function (k) { return 500 + (k - (n - 1) / 2) * (n <= 1 ? 0 : Math.min(16, 120 / (n - 1))); },
+      fan: function (k) { return 500 + (k - (n - 1) / 2) * (n <= 1 ? 0 : Math.min(24, 160 / (n - 1))); }
     };
+  }
+
+  function hubIcon(kind, x, y, parent) {
+    var g = el('g', { class: 'ic', transform: 'translate(' + x + ',' + y + ')' }, parent);
+    if (kind === 'coord') {
+      el('rect', { x: 0, y: 0, width: 22, height: 15, rx: 2.5 }, g);
+      el('path', { d: 'M7 20h8M11 15v5' }, g);
+      el('path', { d: 'M5 10l3.5-3.5 3 2.5L17 4' }, g);
+    } else {
+      el('circle', { cx: 11, cy: 10, r: 9 }, g);
+      el('path', { d: 'M2 10h18M11 1c3 3 3 15 0 18M11 1c-3 3-3 15 0 18' }, g);
+    }
+    return g;
   }
 
   function buildDiagram(opts) {
     opts = opts || {};
     svg.innerHTML = '';
-    layer.links = el('g', {}, svg);
+    layer.wires = el('g', {}, svg);
     layer.nodes = el('g', {}, svg);
     layer.packets = el('g', {}, svg);
     L = {}; queues = {};
     var lay = layoutFor(sites.length);
 
+    // coordinator → scheduler trunk
+    el('path', { d: 'M500 ' + (COORD.y + COORD.h) + ' L500 ' + SCHED.y, class: 'wire live' }, layer.wires);
+
     sites.forEach(function (s, k) {
       var x = lay.x(k), sx = lay.fan(k), lx = lay.lane(k);
-      var y0 = SCHED.y + SCHED.h, y1 = LAPTOP_TOP;
-      var link = el('path', { d: 'M' + sx + ' ' + y0 + ' C' + sx + ' ' + (y0 + 50) + ' ' + x + ' ' + (y1 - 50) + ' ' + x + ' ' + y1, class: 'link' }, layer.links);
-      var downA = el('path', { d: 'M' + lx + ' ' + (COORD.y + COORD.h) + ' L' + lx + ' ' + SCHED.y, class: 'link lane' }, layer.links);
-      var up = el('path', { d: 'M' + x + ' ' + y1 + ' C' + x + ' ' + (y1 - 50) + ' ' + sx + ' ' + (y0 + 50) + ' ' + sx + ' ' + y0 +
-        ' L' + lx + ' ' + SCHED.y + ' L' + lx + ' ' + (COORD.y + COORD.h), fill: 'none', stroke: 'none' }, layer.links);
+      var y0 = SCHED.y + SCHED.h, y1 = M_TOP - 6;
+      var link = el('path', { d: 'M' + sx + ' ' + y0 + ' C' + sx + ' ' + (y0 + 60) + ' ' + x + ' ' + (y1 - 60) + ' ' + x + ' ' + y1, class: 'wire' }, layer.wires);
+      var downA = el('path', { d: 'M' + lx + ' ' + (COORD.y + COORD.h) + ' L' + lx + ' ' + SCHED.y, fill: 'none', stroke: 'none' }, layer.wires);
+      var up = el('path', { d: 'M' + x + ' ' + y1 + ' C' + x + ' ' + (y1 - 60) + ' ' + sx + ' ' + (y0 + 60) + ' ' + sx + ' ' + y0 +
+        ' L' + lx + ' ' + SCHED.y + ' L' + lx + ' ' + (COORD.y + COORD.h), fill: 'none', stroke: 'none' }, layer.wires);
       L[s.name] = { k: k, x: x, scale: lay.scale, link: link, up: up, downA: downA, down: link, round: -1, distributed: false, n: s.rows || null, p: s };
       queues[s.name] = Promise.resolve();
     });
 
     // coordinator
-    var c = el('g', { class: 'coord' }, layer.nodes);
-    el('rect', { x: COORD.x - COORD.w / 2, y: COORD.y, width: COORD.w, height: COORD.h, rx: 12, class: 'node-box' }, c);
-    txt('text', { x: COORD.x - COORD.w / 2 + 18, y: COORD.y + 28, class: 'node-title' }, 'Coordinator', c);
-    txt('text', { x: COORD.x - COORD.w / 2 + 18, y: COORD.y + 46, class: 'node-sub' }, 'this laptop · holds no training rows', c);
-    layer.coordStatus = txt('text', { x: COORD.x - COORD.w / 2 + 18, y: COORD.y + 92, class: 'node-status' }, idleStatus(), c);
-    txt('text', { x: COORD.x + COORD.w / 2 - 18, y: COORD.y + 28, class: 'node-sub', 'text-anchor': 'end' }, 'weights β', c);
-    layer.wstrip = el('g', { class: 'wstrip' }, c);
+    var c = el('g', { class: 'hub coord' }, layer.nodes);
+    el('rect', { x: COORD.x - COORD.w / 2, y: COORD.y, width: COORD.w, height: COORD.h, rx: 10, class: 'box' }, c);
+    hubIcon('coord', COORD.x - COORD.w / 2 + 20, COORD.y + 25, c);
+    txt('text', { x: COORD.x - COORD.w / 2 + 58, y: COORD.y + 31, class: 'h-title' }, 'Coordinator', c);
+    layer.coordStatus = txt('text', { x: COORD.x - COORD.w / 2 + 58, y: COORD.y + 50, class: 'h-sub' }, idleStatus(), c);
     layer.coord = c;
-    drawWeightStrip(null);
 
     // scheduler
-    var s = el('g', { class: 'sched' }, layer.nodes);
-    el('rect', { x: SCHED.x - SCHED.w / 2, y: SCHED.y, width: SCHED.w, height: SCHED.h, rx: 30, class: 'node-box' }, s);
-    txt('text', { x: SCHED.x, y: SCHED.y + 26, class: 'node-title', 'text-anchor': 'middle' }, 'DCP scheduler', s);
-    layer.schedSub = txt('text', { x: SCHED.x, y: SCHED.y + 44, class: 'node-sub', 'text-anchor': 'middle' }, 'routes each job to its laptop’s compute group', s);
-    var badge = el('g', { class: 'sched-badge', opacity: 0, transform: 'translate(' + (SCHED.x + SCHED.w / 2 - 6) + ',' + (SCHED.y + 4) + ')' }, s);
-    el('circle', { r: 12 }, badge);
-    layer.badgeText = txt('text', { 'text-anchor': 'middle', y: 4 }, '0', badge);
-    layer.badge = badge;
-    layer.held = 0;
+    var s = el('g', { class: 'hub sched' }, layer.nodes);
+    el('rect', { x: SCHED.x - SCHED.w / 2, y: SCHED.y, width: SCHED.w, height: SCHED.h, rx: SCHED.h / 2, class: 'box' }, s);
+    hubIcon('sched', SCHED.x - SCHED.w / 2 + 16, SCHED.y + 12, s);
+    txt('text', { x: SCHED.x - SCHED.w / 2 + 48, y: SCHED.y + 27, class: 'h-title', style: 'font-size:13px' }, 'DCP scheduler', s);
+    layer.sched = s;
 
     if (!sites.length) {
       var e = el('g', { class: 'empty-slot' }, layer.nodes);
-      el('rect', { x: 290, y: LAPTOP_TOP + 10, width: 420, height: 120, rx: 14 }, e);
-      txt('text', { x: 500, y: LAPTOP_TOP + 62, 'text-anchor': 'middle', class: 'empty-title' }, mode === 'dcp' ? 'Waiting for laptops to join' : mode === 'dcpjob' ? 'No states added yet' : 'No simulated laptops yet', e);
-      txt('text', { x: 500, y: LAPTOP_TOP + 86, 'text-anchor': 'middle', class: 'empty-sub' }, mode === 'dcp' ? 'Scan the QR code or open the join link on another laptop' : 'Use “' + addLabel() + '” in the join panel', e);
+      el('rect', { x: 290, y: M_TOP - 10, width: 420, height: 110, rx: 12 }, e);
+      txt('text', { x: 500, y: M_TOP + 38, 'text-anchor': 'middle', class: 'empty-title' },
+        mode === 'dcp' ? 'Waiting for machines to join' : 'No ' + noun(2) + ' yet', e);
+      txt('text', { x: 500, y: M_TOP + 60, 'text-anchor': 'middle', class: 'empty-sub' },
+        mode === 'dcp' ? 'Scan the QR code or open the join link on another computer' : 'Press “+ Add” in the join panel', e);
     }
 
-    sites.forEach(function (st) { drawLaptop(st, opts.appear && opts.appear.indexOf(st.name) >= 0); });
+    sites.forEach(function (st) { drawMachine(st, opts.appear && opts.appear.indexOf(st.name) >= 0); });
   }
 
-  /** One laptop, drawn around (0, 0) = top centre of its screen, then placed and scaled. */
-  function drawLaptop(st, animateIn) {
+  /** One machine, drawn around (0, 0) = top centre of its monitor, then placed and scaled. */
+  function drawMachine(st, animateIn) {
     var o = L[st.name];
-    var g = el('g', { class: 'laptop', transform: 'translate(' + o.x + ',' + LAPTOP_TOP + ') scale(' + o.scale + ')' }, layer.nodes);
-    el('rect', { x: -82, y: 0, width: 164, height: 104, rx: 9, class: 'screen' }, g);
-    el('rect', { x: -74, y: 8, width: 148, height: 86, rx: 4, class: 'display' }, g);
-    txt('text', { x: 0, y: 33, class: 'st-name', 'text-anchor': 'middle' }, nice(st.name), g);
-    o.dev = txt('text', { x: 0, y: 52, class: 'st-dev', 'text-anchor': 'middle' }, st.device || '', g);
-    o.status = txt('text', { x: 0, y: 78, class: 'st-status', 'text-anchor': 'middle' }, '', g);
-    el('path', { d: 'M-98 108 L98 108 L88 119 L-88 119 Z', class: 'base' }, g);
-    el('line', { x1: 0, y1: 119, x2: 0, y2: 150, class: 'loop' }, g);
-    txt('text', { x: 6, y: 139, class: 'loop-l' }, st.port ? 'localhost:' + st.port : 'in-process', g);
-    var cy = 152;
-    el('path', { d: 'M-26 ' + (cy + 6) + ' L-26 ' + (cy + 34) + ' A26 7 0 0 0 26 ' + (cy + 34) + ' L26 ' + (cy + 6), class: 'db' }, g);
-    el('ellipse', { cx: 0, cy: cy + 6, rx: 26, ry: 7, class: 'db' }, g);
-    var lk = el('g', { transform: 'translate(-6,' + (cy + 15) + ')' }, g);
-    el('rect', { x: 0, y: 6, width: 12, height: 9, rx: 2, fill: '#f5b942' }, lk);
-    el('path', { d: 'M2.5 6 V3.5 a3.5 3.5 0 0 1 7 0 V6', fill: 'none', stroke: '#f5b942', 'stroke-width': 1.6 }, lk);
-    o.rows = txt('text', { x: 0, y: cy + 58, class: 'db-l', 'text-anchor': 'middle' }, o.n ? o.n.toLocaleString() + ' rows' : 'local data', g);
-    txt('text', { x: 0, y: cy + 72, class: 'db-l2', 'text-anchor': 'middle' }, 'stays on this laptop', g);
-    // remove button (shown on hover while idle)
-    var x = el('g', { class: 'kick', transform: 'translate(70,-8)' }, g);
-    el('circle', { r: 10 }, x);
-    txt('text', { 'text-anchor': 'middle', y: 4 }, '×', x);
-    var title = el('title', {}, x); title.textContent = 'Remove ' + nice(st.name);
+    var g = el('g', { class: 'machine', transform: 'translate(' + o.x + ',' + M_TOP + ') scale(' + o.scale + ')' }, layer.nodes);
+    el('rect', { x: -36, y: 0, width: 72, height: 48, rx: 5, class: 'mon' }, g);
+    el('rect', { x: -30, y: 6, width: 60, height: 36, rx: 2, class: 'scr' }, g);
+    el('path', { d: 'M0 48 V58 M-14 58 H14', class: 'stand' }, g);
+    o.glyph = txt('text', { x: 0, y: 30, class: 'glyph' }, '', g);
+    // data cylinder
+    var cy = 72;
+    el('path', { d: 'M-16 ' + cy + ' V' + (cy + 20) + ' A16 5 0 0 0 16 ' + (cy + 20) + ' V' + cy, class: 'db' }, g);
+    el('ellipse', { cx: 0, cy: cy, rx: 16, ry: 5, class: 'db' }, g);
+    el('path', { d: 'M-16 ' + (cy + 10) + ' A16 5 0 0 0 16 ' + (cy + 10), class: 'db', fill: 'none' }, g);
+    txt('text', { x: 0, y: cy + 50, class: 'm-name', 'text-anchor': 'middle' }, nice(st.name), g);
+    o.rows = txt('text', { x: 0, y: cy + 67, class: 'm-rows', 'text-anchor': 'middle' }, o.n ? o.n.toLocaleString() + ' rows' : '', g);
+    o.status = txt('text', { x: 0, y: cy + 84, class: 'm-status', 'text-anchor': 'middle' }, '', g);
+    var tip = el('title', {}, g); tip.textContent = nice(st.name) + (st.device ? ' · ' + st.device : '') + (st.port ? ' · localhost:' + st.port : '');
+    // remove (shown on hover while idle)
+    var x = el('g', { class: 'kick', transform: 'translate(40,-6)' }, g);
+    el('circle', { r: 8 }, x);
+    el('path', { d: 'M-3 -3 L3 3 M3 -3 L-3 3' }, x);
+    var t = el('title', {}, x); t.textContent = 'Remove ' + nice(st.name);
     x.addEventListener('click', function () { if (!training) removeParticipant(st.id); });
     o.g = g;
     o.dbY = cy;
     applyPresence(st.name);
-    if (animateIn) ripple(o);
+    if (animateIn && !reduceMotion) {
+      g.style.opacity = 0;
+      tween(500, function (k) { g.style.opacity = k; }).then(function () { g.style.opacity = ''; });
+    }
   }
 
   /** Joined, worker starting, online, offline: from the participant record. */
   function applyPresence(name) {
     var o = L[name]; if (!o) return;
     var p = o.p;
-    o.g.classList.remove('ghost', 'offline', 'online');
+    o.g.classList.remove('ghost', 'offline');
     if (p.status === 'offline') {
       o.g.classList.add('offline');
-      o.status.textContent = 'offline (no heartbeat)';
+      o.status.textContent = 'Offline';
     } else if (!p.simulated && !p.workerRunning) {
       o.g.classList.add('ghost');
-      o.status.textContent = 'joined · worker starting';
+      o.status.textContent = 'Starting worker…';
     } else {
-      o.g.classList.add('online');
       o.link.classList.add('live');
-      if (!training) o.status.textContent = p.simulated ? 'simulated laptop' : 'worker ready';
+      if (!training) o.status.textContent = p.simulated ? (dataInJob() ? 'Ready' : 'Simulated') : 'Ready';
     }
   }
 
-  function ripple(o) {
-    if (reduceMotion) return Promise.resolve();
-    var r = el('circle', { cx: 0, cy: 52, r: 20, class: 'ripple' }, o.g);
-    return tween(800, function (t) {
-      r.setAttribute('r', 20 + t * 110);
-      r.setAttribute('opacity', 1 - t);
-    }).then(function () { r.remove(); });
-  }
-
-  function drawWeightStrip(beta) {
-    var g = layer.wstrip; if (!g) return;
-    g.innerHTML = '';
-    var n = beta ? beta.length - 1 : 10;
-    var x0 = COORD.x + COORD.w / 2 - 18 - n * 13, mid = COORD.y + 84, h = 20;
-    var max = beta ? Math.max.apply(null, beta.slice(1).map(Math.abs).concat([1e-9])) : 1;
-    el('line', { x1: x0 - 3, x2: x0 + n * 13, y1: mid, y2: mid, stroke: '#34406a' }, g);
-    for (var j = 0; j < n; j++) {
-      var v = beta ? beta[j + 1] : 0;
-      var bh = Math.max(1.5, Math.abs(v) / max * h);
-      el('rect', { x: x0 + j * 13, y: v >= 0 ? mid - bh : mid, width: 9, height: bh, rx: 1.5, fill: beta ? (v >= 0 ? '#5b8cff' : '#ff8f8f') : '#34406a' }, g);
-    }
-  }
-
-  function setLaptop(name, cls, status) {
+  function setMachine(name, cls, status) {
     var o = L[name]; if (!o) return;
     ['working', 'reading', 'sent', 'failed'].forEach(function (c) { o.g.classList.remove(c); });
     if (cls) o.g.classList.add(cls);
     if (status != null) o.status.textContent = status;
+    o.glyph.textContent = cls === 'sent' ? '✓' : cls === 'failed' ? '!' : '';
+    o.glyph.setAttribute('fill', cls === 'sent' ? 'var(--good)' : 'var(--bad)');
   }
 
   function tween(ms, step) {
@@ -537,9 +607,9 @@
 
   function travel(path, label, cls, ms) {
     var g = el('g', { class: 'packet ' + cls }, layer.packets);
-    var w = label.length * 6.9 + 14;
-    el('rect', { x: -w / 2, y: -10, width: w, height: 20 }, g);
-    txt('text', { 'text-anchor': 'middle', y: 4 }, label, g);
+    var w = label.length * 6.6 + 14;
+    el('rect', { x: -w / 2, y: -9, width: w, height: 18 }, g);
+    txt('text', { 'text-anchor': 'middle', y: 3.8 }, label, g);
     var len = path.getTotalLength();
     return tween(ms, function (t) {
       var p = path.getPointAtLength(len * ease(t));
@@ -549,39 +619,56 @@
 
   function localRead(name) {
     var o = L[name];
-    var dots = [0, 1, 2].map(function () { return el('circle', { cx: 0, cy: o.dbY, r: 3.2, class: 'rowdot' }, o.g); });
-    return tween(650, function (t) {
+    var dots = [0, 1, 2].map(function () { return el('circle', { cx: 0, cy: o.dbY, r: 2.6, class: 'rowdot' }, o.g); });
+    return tween(600, function (t) {
       dots.forEach(function (d, i) {
         var tt = Math.max(0, Math.min(1, t * 1.6 - i * .3));
-        d.setAttribute('cy', o.dbY - tt * 34);
+        d.setAttribute('cy', o.dbY - tt * 26);
         d.setAttribute('opacity', tt <= 0 || tt >= 1 ? 0 : 1);
       });
     }).then(function () { dots.forEach(function (d) { d.remove(); }); });
   }
 
-  function setHeld(delta) {
-    layer.held = Math.max(0, layer.held + delta);
-    layer.badgeText.textContent = layer.held;
-    layer.badge.setAttribute('opacity', layer.held ? 1 : 0);
-  }
-
   // ---------- side panel ----------
-  function feed(cls, icon, html) {
+  var feedN = 0;
+  function feed(cls, html, meta) {
     var li = document.createElement('li');
     li.className = cls;
-    li.innerHTML = '<span class="i"></span><span class="b"></span>';
-    li.querySelector('.i').textContent = icon;
-    li.querySelector('.b').innerHTML = html;
+    li.innerHTML = '<span class="tm"></span><span class="dot"></span><span class="msg"></span><span class="meta"></span>';
+    li.querySelector('.tm').textContent = clock();
+    li.querySelector('.msg').innerHTML = html;
+    li.querySelector('.meta').textContent = meta || '';
+    li.title = li.querySelector('.msg').textContent;
     var ul = $('feed');
     ul.insertBefore(li, ul.firstChild);
-    while (ul.children.length > 80) ul.removeChild(ul.lastChild);
+    while (ul.children.length > 120) ul.removeChild(ul.lastChild);
+    feedN++;
+    $('feedCount').textContent = feedN + ' events';
   }
-  function esc(s) { var d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
 
-  function updateCounters() {
-    $('cSent').textContent = fmtBytes(counters.sent);
-    $('cJobs').textContent = counters.jobs;
-    $('cKept').textContent = counters.rows ? counters.rows.toLocaleString() : '—';
+  function updateTiles() {
+    var last = run.losses[run.losses.length - 1];
+    $('tLoss').textContent = last != null ? Math.round(last).toLocaleString() : '–';
+    $('tJobs').textContent = run.jobs;
+    $('tCost').textContent = run.dcc != null ? (run.jobs * run.dcc) + ' DCC' : '–';
+    drawSpark();
+  }
+
+  function drawSpark() {
+    var s = $('spark'); s.innerHTML = '';
+    var v = run.losses;
+    s.style.display = v.length < 2 ? 'none' : '';
+    if (v.length < 2) return;
+    var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v);
+    var W = 300, H = 36, pad = 3;
+    // high loss at the top, so the line falls as training converges
+    var pts = v.map(function (y, i) {
+      var t = hi === lo ? .5 : (y - lo) / (hi - lo);
+      return [pad + i / (v.length - 1) * (W - 2 * pad), H - pad - t * (H - 2 * pad)];
+    });
+    var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
+    el('path', { d: line + ' L' + pts[pts.length - 1][0] + ' ' + H + ' L' + pts[0][0] + ' ' + H + ' Z', class: 'area' }, s);
+    el('path', { d: line, class: 'line', 'vector-effect': 'non-scaling-stroke' }, s);
   }
 
   function renderWeights(beta) {
@@ -592,7 +679,7 @@
       featureNames.forEach(function (f) {
         var row = document.createElement('div');
         row.className = 'w';
-        row.innerHTML = '<span class="n"></span><span class="track"><span class="fill"></span></span><span class="v">0</span>';
+        row.innerHTML = '<span class="n"></span><span class="track"><span class="fill"></span></span><span class="v">0.000</span>';
         row.querySelector('.n').textContent = FEATURE_LABELS[f] || f;
         box.appendChild(row);
       });
@@ -603,10 +690,10 @@
     box.querySelectorAll('.w').forEach(function (row, j) {
       var v = w[j], frac = Math.abs(v) / max * 50;
       var fill = row.querySelector('.fill');
+      fill.className = 'fill ' + (v >= 0 ? 'pos' : 'neg');
       fill.style.left = (v >= 0 ? 50 : 50 - frac) + '%';
       fill.style.width = frac + '%';
-      fill.style.background = v >= 0 ? 'var(--accent)' : '#ff8f8f';
-      row.querySelector('.v').textContent = (v >= 0 ? '+' : '') + v.toFixed(3);
+      row.querySelector('.v').textContent = (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(3);
     });
   }
 
@@ -626,68 +713,50 @@
     Object.keys(queues).forEach(function (k) { queues[k] = gate; });
     return gate;
   }
-  function stageLabel(e) { return e.stage === 'stats' ? 'Round 0' : 'Round ' + e.round; }
 
   function siteEvent(e) {
     var o = L[e.site]; if (!o) return;
     var speed = mode === 'sim' ? 1 : 0.8;
+    var stats = e.stage === 'stats';
     if (e.event === 'deployed') {
       enqueue(e.site, function () {
         if (o.round !== e.round) { o.round = e.round; o.distributed = false; }
-        counters.sent += e.bytes || 0; counters.jobs += 1; updateCounters();
-        var what = (e.stage === 'stats' ? 'request for counts and sums' : 'weights β (' + dParams() + ' numbers)') + (e.dataBytes ? ' + its rows' : '');
-        feed('out', '→', '<b>' + esc(nice(e.site)) + '</b> ' + what + ' <code>' + fmtBytes(e.bytes || 0) + '</code>');
-        setLaptop(e.site, null, 'job queued at scheduler');
-        return travel(o.downA, e.stage === 'stats' ? 'stats?' : 'β·' + dParams(), 'out', 650 * speed).then(function () { setHeld(1); });
-      });
-    } else if (e.event === 'accepted') {
-      enqueue(e.site, function () {
-        feed('', '·', 'scheduler accepted <b>' + esc(nice(e.site)) + '</b> job <code>' + esc(String(e.jobId || '').slice(0, 14)) + '</code>');
+        run.jobs += 1; updateTiles();
+        feed('out', (stats ? 'Statistics request to <b>' + esc(nice(e.site)) + '</b>' : 'Weights to <b>' + esc(nice(e.site)) + '</b>') + (e.dataBytes ? ' with its rows' : ''), fmtBytes(e.bytes || 0));
+        setMachine(e.site, null, 'Job queued');
+        return travel(o.downA, stats ? 'stats' : 'β', 'out', 600 * speed);
       });
     } else if (e.event === 'distributed') {
-      enqueue(e.site, function () { return toLaptop(e, o, speed); });
+      enqueue(e.site, function () { return toMachine(e, o, speed); });
     } else if (e.event === 'result') {
       enqueue(e.site, function () {
-        var pre = o.distributed ? Promise.resolve() : toLaptop(e, o, speed);
+        var pre = o.distributed ? Promise.resolve() : toMachine(e, o, speed);
         return pre.then(function () {
-          if (e.device) o.dev.textContent = e.device;
-          if (e.stage === 'stats' && e.n != null) {
-            o.n = e.n;
-            o.rows.textContent = e.n.toLocaleString() + ' rows';
-            counters.rows += e.n; counters.kept += e.sourceBytes || 0; updateCounters();
-          }
-          setLaptop(e.site, 'working', e.stage === 'stats' ? 'sending counts & sums' : 'sending gradient + Hessian');
-          counters.sent += e.bytes || 0; updateCounters();
-          var what = e.stage === 'stats' ? 'counts and sums (' + inboundNumbers('stats') + ' numbers)' : 'gradient, Hessian, loss (' + inboundNumbers('newton') + ' numbers)';
-          feed('in', '←', '<b>' + esc(nice(e.site)) + '</b> ' + what + ' <code>' + fmtBytes(e.bytes || 0) + '</code>' + (e.device ? ' from <code>' + esc(e.device) + '</code>' : ''));
-          return travel(o.up, e.stage === 'stats' ? 'Σ·' + inboundNumbers('stats') : '∇H·' + inboundNumbers('newton'), 'in', 1000 * speed);
-        }).then(function () { setLaptop(e.site, 'sent', stageLabel(e) + ' sent ✓'); });
+          if (stats && e.n != null) { o.n = e.n; o.rows.textContent = e.n.toLocaleString() + ' rows'; }
+          setMachine(e.site, 'working', stats ? 'Sending statistics' : 'Sending gradient');
+          feed('in', '<b>' + esc(nice(e.site)) + '</b> sent ' + (stats ? 'statistics' : 'its gradient'), fmtBytes(e.bytes || 0));
+          return travel(o.up, stats ? 'Σ' : '∇ H', 'in', 900 * speed);
+        }).then(function () { setMachine(e.site, 'sent', stats ? 'Statistics sent' : 'Round ' + e.round + ' sent'); });
       });
     } else if (e.event === 'retry') {
       enqueue(e.site, function () {
-        setLaptop(e.site, 'failed', 'retry ' + e.attempt);
-        feed('err', '!', '<b>' + esc(nice(e.site)) + '</b> attempt failed, redeploying: ' + esc(e.error));
-        if (layer.held) setHeld(-1);
+        setMachine(e.site, 'failed', 'Retrying');
+        feed('err', '<b>' + esc(nice(e.site)) + '</b> attempt failed, retrying: ' + esc(e.error));
       });
     }
   }
 
-  function toLaptop(e, o, speed) {
+  function toMachine(e, o, speed) {
     o.distributed = true;
-    if (layer.held) setHeld(-1);
-    return travel(o.down, e.stage === 'stats' ? 'stats?' : 'β·' + dParams(), 'out', 750 * speed)
+    return travel(o.down, e.stage === 'stats' ? 'stats' : 'β', 'out', 700 * speed)
       .then(function () {
-        setLaptop(e.site, 'reading', dataInJob() ? 'reading rows from the job' : 'reading rows locally');
-        if (dataInJob()) {
-          feed('local', '↻', '<b>' + esc(nice(e.site)) + '</b> worker got ' + (o.n ? o.n.toLocaleString() + ' rows' : 'its rows') + ' inside the job (demo; a real site keeps them local)');
-        } else {
-          var where = o.p.port ? 'from <code>localhost:' + esc(o.p.port) + '</code>' : 'locally';
-          feed('local', '↻', '<b>' + esc(nice(e.site)) + '</b> worker read ' + (o.n ? o.n.toLocaleString() + ' rows' : 'its rows') + ' ' + where + ', not sent');
-        }
+        setMachine(e.site, 'reading', dataInJob() ? 'Reading rows from job' : 'Reading local rows');
+        if (dataInJob()) feed('local', '<b>' + esc(nice(e.site)) + '</b> read its rows from the job');
+        else feed('local', '<b>' + esc(nice(e.site)) + '</b> read ' + (o.n ? o.n.toLocaleString() + ' rows' : 'its rows') + ' locally', 'kept');
         return localRead(e.site);
       })
       .then(function () {
-        setLaptop(e.site, 'working', e.stage === 'stats' ? 'counting rows & classes' : 'computing gradient + Hessian');
+        setMachine(e.site, 'working', e.stage === 'stats' ? 'Computing statistics' : 'Computing gradient');
         return sleep(250);
       });
   }
@@ -706,75 +775,78 @@
       sites = e.sites.map(function (s) { return participantById(s.id) || s; });
       maxRounds = e.maxRounds || 10;
       featureNames = null;
-      counters = { sent: 0, jobs: 0, rows: 0, kept: 0 };
-      updateCounters();
-      $('cLoss').textContent = '—';
-      $('feed').innerHTML = '';
-      $('weights').innerHTML = '<div class="empty">Appear after round 0, when the laptops have reported their feature names.</div>';
+      run = { jobs: 0, dcc: null, losses: [] };
+      updateTiles();
+      $('feed').innerHTML = ''; feedN = 0;
+      $('weights').innerHTML = '<div class="empty-note">Shown after round 0.</div>';
       gate = Promise.resolve();
       buildDiagram();
-      layer.coordStatus.textContent = 'round 0 · asking for summary stats';
-      phase('Round 0', 'The coordinator asks each laptop for <b>row counts, sums and class counts</b>, to standardize features globally. No rows are requested.');
-      sites.forEach(function (s) { setLaptop(s.name, null, 'waiting for job'); });
-      feed('coord', '◆', (e.mode === 'dcp' ? 'DCP run' : e.mode === 'dcpjob' ? 'DCP run (data in job, ' + esc((config && config.dcpJobGroup) || 'public network') + ')' : 'Simulation') + ' started with ' + sites.length + (e.mode === 'dcpjob' ? ' states' : ' laptops'));
+      layer.coordStatus.textContent = 'Round 0 · requesting statistics';
+      phase('Round 0', 'Collecting summary statistics from each ' + noun(1) + ' to standardize features.');
+      sites.forEach(function (s) { setMachine(s.name, null, 'Waiting'); });
+      feed('coord', 'Started ' + (e.mode === 'sim' ? 'simulated run' : 'DCP run') + ' with ' + sites.length + ' ' + noun(sites.length) +
+        (e.mode === 'dcpjob' ? ' · ' + esc((config && config.dcpJobGroup) || 'public network') : ''));
     } else if (e.type === 'cost') {
-      feed('coord', '◆', 'Price ' + e.dccPerSlice + ' DCC per job: about ' + e.typical + ' DCC, at most ' + e.ceiling + ' DCC');
+      run.dcc = e.dccPerSlice;
+      updateTiles();
+      feed('coord', 'Price ' + e.dccPerSlice + ' DCC per job', '≈' + e.typical + ' DCC');
     } else if (e.type === 'site') {
       siteEvent(e);
     } else if (e.type === 'stats') {
       afterAll(function () {
         featureNames = e.featureNames;
         layer.coord.classList.add('busy');
-        layer.coordStatus.textContent = 'combining stats → global mean & std';
-        feed('coord', '◆', 'Coordinator combined ' + e.N.toLocaleString() + ' rows’ statistics from ' + e.sites.length + ' laptops' + (e.warnings.length ? ' (' + e.warnings.length + ' warnings)' : ''));
+        layer.coordStatus.textContent = 'Combining statistics';
+        feed('coord', 'Combined statistics for ' + e.N.toLocaleString() + ' rows' + (e.warnings.length ? ' (' + e.warnings.length + ' warnings)' : ''));
         renderWeights(null);
-        return sleep(900).then(function () {
+        return sleep(700).then(function () {
           layer.coord.classList.remove('busy');
-          layer.coordStatus.textContent = 'round 1 · sending weights';
-          phase('Round 1', 'The coordinator sends the current <b>weights β</b>. Each laptop computes the <b>gradient and Hessian</b> on its own rows and sends back only those.');
+          layer.coordStatus.textContent = 'Round 1 · sending weights';
+          updateTiles();
+          phase('Round 1', 'Each ' + noun(1) + ' computes the <b>gradient and Hessian</b> on its own rows and returns only those.');
         });
       });
     } else if (e.type === 'round') {
       afterAll(function () {
         layer.coord.classList.add('busy');
-        layer.coordStatus.textContent = 'summing ' + sites.length + ' Hessians → Newton step';
-        return sleep(500).then(function () {
-          drawWeightStrip(e.betaNext || e.beta);
+        layer.coordStatus.textContent = 'Combining ' + sites.length + ' updates · Newton step';
+        return sleep(450).then(function () {
           renderWeights(e.betaNext || e.beta);
-          $('cLoss').textContent = Math.round(e.loss).toLocaleString();
-          feed('coord', '◆', 'Newton step ' + e.round + ': loss ' + e.loss.toFixed(2) + (e.rejected ? ' (step rejected, more damping)' : '') + ', largest change ' + e.maxStep.toExponential(1));
-          return sleep(500);
+          run.losses.push(e.loss);
+          updateTiles();
+          feed('coord', 'Round ' + e.round + ' complete' + (e.rejected ? ' (step damped)' : ''), 'loss ' + Math.round(e.loss).toLocaleString());
+          return sleep(450);
         }).then(function () {
           layer.coord.classList.remove('busy');
           if (e.converged) {
-            layer.coordStatus.textContent = 'converged after ' + e.round + ' rounds';
-            phase('Done', 'Converged: the weights stopped changing. <b>Scoring the model</b>…');
+            layer.coordStatus.textContent = 'Converged after ' + e.round + ' rounds';
+            phase('Converged', 'The weights stopped changing. Scoring the model…');
           } else {
-            layer.coordStatus.textContent = 'round ' + (e.round + 1) + ' · sending weights';
-            phase('Round ' + (e.round + 1), 'New weights go out. Each laptop recomputes its <b>gradient and Hessian</b> at the new weights.');
+            layer.coordStatus.textContent = 'Round ' + (e.round + 1) + ' · sending weights';
+            updateTiles();
+            phase('Round ' + (e.round + 1), 'New weights sent. Each ' + noun(1) + ' recomputes its <b>gradient and Hessian</b>.');
           }
         });
       });
     } else if (e.type === 'done') {
-      lastDone = e;
       afterAll(function () {
-        phase('Done', 'Converged in <b>' + e.rounds + ' rounds</b>. Training rows never left the laptops.');
-        layer.coordStatus.textContent = 'done · model ready';
-        drawWeightStrip([e.intercept].concat(e.coefficients.map(function (c, j) { return c; })));
-        return sleep(700).then(function () { showResults(e); $('train').disabled = false; });
+        phase('Done', 'Converged in <b>' + e.rounds + ' rounds</b>' + (e.mode === 'dcpjob' ? '.' : '. Training rows never left their ' + noun(2) + '.'));
+        layer.coordStatus.textContent = 'Model ready';
+        feed('coord', 'Model trained · test AUC ' + e.federated.auc.toFixed(3));
+        return sleep(600).then(function () { showResults(e); $('train').disabled = false; });
       });
     } else if (e.type === 'error') {
       afterAll(function () {
         phase('Stopped', '<span style="color:var(--bad)">' + esc(e.message) + '</span>');
-        feed('err', '!', esc(e.message));
+        feed('err', esc(e.message));
         layer.coord && layer.coord.classList.remove('busy');
         $('train').disabled = false;
       });
     }
   }
 
-  // ---------- participants (laptops joining and leaving) ----------
-  var participants = [];   // everyone the coordinator knows, both modes
+  // ---------- participants (machines joining and leaving) ----------
+  var participants = [];   // everyone the coordinator knows, all modes
   var training = false;
   var pendingLayout = false;
   var minParticipants = 2;
@@ -786,12 +858,8 @@
   function modeParticipants() {
     return participants.filter(function (p) { return p.simulated === (mode !== 'dcp'); });
   }
-  /** dcpjob: real DCP, but the rows travel inside each job (Alex's showcase advice, decision 0001). */
-  function dataInJob() { return mode === 'dcpjob'; }
-  function addLabel() { return dataInJob() ? '+ Add state' : '+ Add simulated laptop';
-  }
 
-  /** Redraw the laptops for the current mode. New names get the join ripple. */
+  /** Redraw the machines for the current mode. New names fade in. */
   function relayout(appearNames) {
     pendingLayout = false;
     sites = modeParticipants();
@@ -803,11 +871,16 @@
   function updateReady() {
     if (training) return;
     var online = sites.filter(function (p) { return p.status === 'online'; }).length;
-    phase('Ready', online < minParticipants
-      ? (mode === 'dcp' ? 'Waiting for laptops to join. Each one brings its own data; at least <b>' + minParticipants + '</b> must be online.' : 'Add at least <b>' + minParticipants + '</b> ' + (dataInJob() ? 'states' : 'simulated laptops') + '.')
-      : dataInJob()
-        ? '<b>' + online + ' states</b> ready. Each round, each state’s rows go to DCP inside its job, on the ' + esc((config && config.dcpJobGroup) || 'public DCP network') + '. In a real deployment they would stay on each site.'
-        : '<b>' + online + ' laptops</b> ready, each holding its own data. Press <b>Start training</b>.');
+    if (online < minParticipants) {
+      phase('Ready', mode === 'dcp'
+        ? 'Waiting for machines. At least <b>' + minParticipants + '</b> must be online to train.'
+        : 'Add at least <b>' + minParticipants + '</b> ' + noun(2) + ' to train.');
+    } else {
+      phase('Ready', '<b>' + online + ' ' + noun(online) + '</b> online. ' + (dataInJob()
+        ? 'Rows are sent inside each DCP job for this demo; in production they stay on each site.'
+        : 'Each holds its own data.'));
+    }
+    if (layer.coordStatus) layer.coordStatus.textContent = idleStatus();
   }
 
   function participantEvent(e) {
@@ -819,15 +892,14 @@
 
     var inMode = p.simulated === (mode !== 'dcp');
     if (inMode) {
-      var verb = { joined: 'joined', left: 'left', offline: 'went offline', updated: null }[e.action];
-      if (verb) feed(e.action === 'joined' ? 'in' : 'err', e.action === 'joined' ? '+' : '−',
-        '<b>' + esc(nice(p.name)) + '</b> ' + verb + (p.simulated ? '' : ' <code>' + esc(p.device) + '</code>') + (e.action === 'joined' ? ' with ' + p.rows.toLocaleString() + (dataInJob() ? ' rows' : ' rows (kept on the laptop)') : ''));
+      if (e.action === 'joined') feed('join', '<b>' + esc(nice(p.name)) + '</b> joined' + (p.simulated ? '' : ' from ' + esc(p.device)), p.rows.toLocaleString() + ' rows');
+      if (e.action === 'left') feed('err', '<b>' + esc(nice(p.name)) + '</b> left');
+      if (e.action === 'offline') feed('err', '<b>' + esc(nice(p.name)) + '</b> went offline');
     }
     if (!inMode) { renderJoin(); return; }
     if (training) {
-      // Mid-run: keep the diagram stable. Update the node in place if it is in this run.
       var o = L[p.name];
-      if (o && o.p.id === p.id) { o.p = p; if (e.action !== 'left') applyPresence(p.name); else setLaptop(p.name, 'failed', 'left the session'); }
+      if (o && o.p.id === p.id) { o.p = p; if (e.action !== 'left') applyPresence(p.name); else setMachine(p.name, 'failed', 'Left'); }
       if (e.action === 'joined' || e.action === 'left') pendingLayout = true;
       renderJoin();
       return;
@@ -853,30 +925,30 @@
     if (!config) return;
     var urls = config.joinUrls || [];
     var url = urls[Math.min(joinIndex, urls.length - 1)] || '';
-    $('joinLink').textContent = url.replace(/^https?:\/\//, '');
+    $('joinLink').textContent = url.replace(/^https?:\/\//, '').replace(/\?t=.*/, '');
     $('joinLink').href = url;
+    $('joinLink').title = url;
     $('joinPick').hidden = urls.length < 2;
     var qr = $('qr');
     if (window.qrcode && url && qr.dataset.url !== url) {
       var q = window.qrcode(0, 'M');
       q.addData(url);
       q.make();
-      qr.innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+      qr.innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
       qr.dataset.url = url;
     } else if (!window.qrcode) {
-      qr.innerHTML = '<span>QR needs internet<br>use the link</span>';
+      qr.innerHTML = '<span>QR needs internet. Use the link.</span>';
     }
     var online = modeParticipants().filter(function (p) { return p.status === 'online'; }).length;
     var s = config.slots || { total: 0, used: 0 };
     var real = participants.filter(function (p) { return !p.simulated; }).length;
     $('joinCount').textContent = mode === 'dcp'
-      ? real + ' joined' + (s.total ? ' · ' + Math.max(0, s.total - s.used) + ' of ' + s.total + ' compute groups free' : s.shared ? ' · shared compute group' : ' · no compute groups set up')
-      : dataInJob() ? online + ' state' + (online === 1 ? '' : 's') + ' · data sent in each job'
-      : online + ' simulated laptop' + (online === 1 ? '' : 's');
+      ? real + ' joined' + (s.total ? ' · ' + Math.max(0, s.total - s.used) + ' of ' + s.total + ' groups free' : s.shared ? ' · shared group' : ' · no compute groups')
+      : online + ' ' + noun(online) + (dataInJob() ? ' · data sent in jobs' : ' · simulated');
     $('simAdd').hidden = mode === 'dcp';
-    $('simAdd').textContent = addLabel();
+    $('simAdd').textContent = dataInJob() ? '+ Add state' : '+ Add machine';
     $('joinPending').textContent = training && pendingLayout ? 'Changes apply after this run' : '';
-    $('train').disabled = training || modeParticipants().filter(function (p) { return p.status === 'online'; }).length < minParticipants;
+    $('train').disabled = training || online < minParticipants;
   }
   $('joinCopy').onclick = function () {
     var url = $('joinLink').href;
@@ -895,10 +967,11 @@
 
   // ---------- results popup ----------
   function showResults(e) {
-    $('rTitle').textContent = 'Training complete: ' + (e.converged ? 'converged in ' + e.rounds + ' rounds' : 'stopped after ' + e.rounds + ' rounds');
-    $('rSub').textContent = e.mode === 'dcpjob'
-      ? 'Run on DCP across ' + sites.length + ' states in ' + (e.durationMs / 1000).toFixed(1) + ' s. For this demo each state’s rows were sent inside its jobs; in a real deployment they stay on each site and only the model numbers move.'
-      : (e.mode === 'dcp' ? 'Run on DCP across ' : 'Simulated run across ') + sites.length + ' laptops in ' + (e.durationMs / 1000).toFixed(1) + ' s. No training row left its laptop.';
+    var where = e.mode === 'sim' ? 'Simulated' : 'DCP';
+    $('rTitle').textContent = (e.converged ? 'Converged in ' : 'Stopped after ') + e.rounds + ' rounds across ' + sites.length + ' ' + noun(sites.length);
+    $('rSub').textContent = where + ' run, ' + (e.durationMs / 1000).toFixed(1) + ' s. ' + (e.mode === 'dcpjob'
+      ? 'For this demo each state’s rows were sent inside its jobs; in production they stay on each site and only model numbers move.'
+      : 'No training row left its machine; only model numbers moved.');
     $('rAucSub').textContent = 'Test AUC on ' + (e.testRows || 0).toLocaleString() + ' held-out rows (higher is better)';
 
     var rows = e.localOnly.map(function (l) { return { name: title(l.site), sub: l.n.toLocaleString(), auc: l.auc, fed: false }; });
@@ -911,23 +984,23 @@
       var div = document.createElement('div');
       div.className = 'bar-row' + (r.fed ? ' fed' : '');
       div.innerHTML = '<div class="n"></div><div class="bar"><div></div></div><div class="v"></div>';
-      div.querySelector('.n').textContent = r.fed ? 'Federated' : r.name + ' alone';
+      div.querySelector('.n').textContent = r.fed ? 'Federated model' : r.name + ' alone';
       div.querySelector('.n').title = r.sub + ' training rows';
       div.querySelector('.v').textContent = r.auc.toFixed(3);
       bars.appendChild(div);
-      setTimeout(function () { div.querySelector('.bar > div').style.width = ((r.auc - min) / (max - min) * 100) + '%'; }, 150 + i * 90);
+      setTimeout(function () { div.querySelector('.bar > div').style.width = ((r.auc - min) / (max - min) * 100) + '%'; }, 120 + i * 80);
     });
     if (e.localOnly.length) {
       var worst = e.localOnly.reduce(function (a, b) { return a.auc < b.auc ? a : b; });
-      $('rLift').innerHTML = 'Smallest state (' + esc(title(worst.site)) + ', ' + worst.n.toLocaleString() + ' rows) goes from ' + worst.auc.toFixed(3) + ' alone to <b>' + e.federated.auc.toFixed(3) + '</b> federated.';
+      $('rLift').innerHTML = esc(title(worst.site)) + ' (' + worst.n.toLocaleString() + ' rows) goes from ' + worst.auc.toFixed(3) + ' alone to <b>' + e.federated.auc.toFixed(3) + '</b> federated.';
     } else {
       $('rLift').textContent = 'Run node demo/baselines.js to add the each-state-alone comparison.';
     }
 
     if (e.reference) {
       $('rDiff').textContent = e.reference.maxDiff.toExponential(1);
-      $('rDiffL').textContent = 'largest coefficient difference: the same model, to ' + (e.reference.maxDiff < 1e-6 ? 'better than 1e-6' : 'within ' + e.reference.maxDiff.toExponential(0));
-      $('rPooledAuc').innerHTML = e.reference.auc != null ? 'Test AUC: federated <b style="color:var(--text)">' + e.federated.auc.toFixed(4) + '</b>, pooled <b style="color:var(--text)">' + Number(e.reference.auc).toFixed(4) + '</b>' : '';
+      $('rDiffL').textContent = 'Largest coefficient difference: ' + (e.reference.maxDiff < 1e-6 ? 'the same model to better than 1e-6.' : 'within ' + e.reference.maxDiff.toExponential(0) + '.');
+      $('rPooledAuc').innerHTML = e.reference.auc != null ? 'Test AUC: federated <b>' + e.federated.auc.toFixed(4) + '</b>, pooled <b>' + Number(e.reference.auc).toFixed(4) + '</b>' : '';
       var names = ['intercept'].concat(e.featureNames);
       var fed = [e.intercept].concat(e.coefficients);
       var ref = [e.reference.intercept].concat(e.reference.coefficients);
@@ -935,7 +1008,7 @@
       names.forEach(function (n, j) { t += '<tr><td>' + esc(FEATURE_LABELS[n] || n) + '</td><td>' + fed[j].toFixed(5) + '</td><td>' + ref[j].toFixed(5) + '</td></tr>'; });
       $('rCoefs').innerHTML = t + '</table>';
     } else {
-      $('rDiff').innerHTML = '<span style="font-size:20px;color:var(--muted)">Not compared this run</span>';
+      $('rDiff').innerHTML = '<span style="font-size:18px;color:var(--muted)">Not compared</span>';
       $('rPooledAuc').textContent = '';
       $('rDiffL').textContent = e.referenceNote || 'No scikit-learn reference for this run.';
       $('rCoefs').innerHTML = '';
@@ -943,47 +1016,47 @@
 
     var r = e.run;
     var moved = r.bytesSent + r.bytesReceived;
-    $('rModeSub').textContent = e.mode === 'dcp' ? 'DCP, one job per state per round' : e.mode === 'dcpjob' ? 'DCP, one job per state per round, rows in the job' : 'Simulation on this laptop';
+    $('rModeSub').textContent = e.mode === 'dcp' ? 'DCP, one job per machine per round' : e.mode === 'dcpjob' ? 'DCP, rows sent in each job' : 'Simulation on this computer';
     var stats = [
       ['Rounds', e.rounds + ' + round 0'],
       ['Wall time', (e.durationMs / 1000).toFixed(1) + ' s'],
       ['DCP jobs', r.slices],
-      [e.mode !== 'sim' ? 'Cost (' + r.dccPerSlice + ' DCC per job)' : 'Cost on DCP at 1 DCC/job', (r.dccPerSlice ? r.slices * r.dccPerSlice : r.slices) + ' DCC'],
-      [r.dataBytesSent ? 'Sent (rows + model numbers)' : 'Model numbers sent', fmtBytes(r.bytesSent)],
+      [e.mode !== 'sim' ? 'Cost' : 'Cost on DCP', (r.dccPerSlice ? r.slices * r.dccPerSlice : r.slices) + ' DCC'],
+      [r.dataBytesSent ? 'Sent (rows + model)' : 'Model numbers sent', fmtBytes(r.bytesSent)],
       ['Aggregates received', fmtBytes(r.bytesReceived)]
     ];
     var html = stats.map(function (s) { return '<div class="stat"><div class="v">' + esc(s[1]) + '</div><div class="l">' + esc(s[0]) + '</div></div>'; }).join('');
     if (r.rawBytes && !r.dataBytesSent) {
       var pct = Math.min(100, moved / (moved + r.rawBytes) * 100);
-      html += '<div class="stat wide"><div class="v" style="color:var(--good)">' + r.rows.toLocaleString() + ' rows · ' + fmtBytes(r.rawBytes) + '</div>' +
-        '<div class="l">stayed on the laptops. Network carried ' + fmtBytes(moved) + ' of model numbers in total, independent of how many rows each state has.</div>' +
+      html += '<div class="stat wide"><div class="v" style="color:var(--data)">' + r.rows.toLocaleString() + ' rows · ' + fmtBytes(r.rawBytes) + '</div>' +
+        '<div class="l">stayed on the machines; ' + fmtBytes(moved) + ' of model numbers moved</div>' +
         '<div class="ratio" title="network traffic vs raw data"><div style="width:' + pct + '%"></div></div></div>';
     }
     $('rStats').innerHTML = html;
     var dev = Object.keys(r.devices || {});
-    $('rDevices').innerHTML = dev.length ? '<div style="margin-bottom:4px;color:var(--dim)">Computed on</div>' + dev.map(function (k) {
+    $('rDevices').innerHTML = dev.length ? '<div style="margin-bottom:4px;color:var(--faint)">Computed on</div>' + dev.map(function (k) {
       return '<div><span>' + esc(nice(k)) + '</span><span>' + esc(r.devices[k]) + '</span></div>';
     }).join('') : '';
-    $('rNote').textContent = 'Each-state-alone scores were computed once, offline, by node demo/baselines.js. The federated model is scored live on the coordinator’s held-out test set.';
+    $('rNote').textContent = 'Each-state-alone scores were computed offline (demo/baselines.js). The federated model is scored live on the coordinator’s held-out test set.';
     $('results').showModal();
   }
   $('rClose').onclick = function () { $('results').close(); };
   $('rAgain').onclick = function () { $('results').close(); $('train').click(); };
 
-  // ---------- start / passwords ----------
+  // ---------- modes, start, passwords ----------
   function setMode(m, fromRun) {
     var changed = mode !== m;
     mode = m;
-    document.querySelectorAll('.toggle button').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === m); });
-    $('cKeptL').textContent = m === 'dcpjob' ? 'rows sent inside jobs (demo only)' : 'rows read locally, never sent';
+    document.querySelectorAll('.seg button').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === m); });
+    if (!training) { run = { jobs: 0, dcc: null, losses: [] }; updateTiles(); }
     showProblem();
     if (!fromRun && (changed || !layer.coord)) relayout();
   }
-  document.querySelectorAll('.toggle button').forEach(function (b) {
+  document.querySelectorAll('.seg button').forEach(function (b) {
     b.onclick = function () { if (!training) setMode(b.dataset.mode); };
   });
   function idleStatus() {
-    return training ? 'starting' : 'idle · ' + sites.length + ' laptop' + (sites.length === 1 ? '' : 's');
+    return training ? 'Starting' : 'Idle · ' + sites.length + ' ' + noun(sites.length) + ' connected';
   }
 
   function showProblem(msg) {
@@ -1026,7 +1099,7 @@
     var idPw = $('pwId').value;
     var payPw = (!need.identity || !$('pwSame').checked) ? $('pwPay').value : idPw;
     $('pwGo').disabled = true;
-    $('pwMsg').textContent = 'Unlocking...';
+    $('pwMsg').textContent = 'Unlocking…';
     startTraining({ identityPassword: idPw, paymentPassword: payPw }).then(function (r) {
       $('pwGo').disabled = false;
       $('pwId').value = ''; $('pwPay').value = '';
@@ -1065,10 +1138,11 @@
     training = Boolean(c.running);
     mode = null;
     setMode(c.defaultMode);
+    if (training) { document.body.classList.add('training'); phase('Running', 'A training run is in progress. The view picks up from the next event.'); }
   });
-  // Keep the compute-group count in the join panel current as laptops come and go.
+  // Keep the compute-group count in the join panel current as machines come and go.
   setInterval(function () {
-    if (document.hidden) return;
+    if (document.hidden || !config) return;
     fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
       config.slots = c.slots; config.joinUrls = c.joinUrls; config.dcpProblem = c.dcpProblem;
       renderJoin();

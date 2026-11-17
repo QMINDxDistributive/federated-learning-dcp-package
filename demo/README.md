@@ -28,11 +28,11 @@ The dashboard has three modes:
 
 | Mode | Where it computes | Where the rows are | Needs |
 |---|---|---|---|
-| **DCP · laptops** | each joined laptop's DCP worker | stay on each laptop | one compute group per laptop (below) |
+| **DCP · machines** | each joined laptop's DCP worker | stay on each laptop | one compute group per laptop (below) |
 | **DCP · data in job** | any DCP worker (public network, or the group in `DCP_ATTACH_KEY`) | sent inside each DCP job | DCP credentials only |
 | **Simulation** | this computer | this computer | nothing |
 
-**Simulation** mode: press **+ Add simulated laptop** in the join panel as many times as you
+**Simulation** mode: press **+ Add machine** in the join panel as many times as you
 like, then **Start training**. Everything runs on this computer with the same events and
 pacing as a real run. Use it to rehearse.
 
@@ -41,8 +41,8 @@ This is real DCP: one job per state per round, paid in DCC. Each state's rows tr
 (decision 0001), so no compute groups are needed. This is Alex's advice for the showcase (see
 [questions for Alex](../specs/shared/questions-for-alex.md)): show federated training on DCP
 working, and say that in a real deployment the rows would stay on each site, which is what
-**DCP · laptops** does. The dashboard and the results popup say this, and the traffic
-counters include the rows.
+**DCP · machines** does. The dashboard and the results popup say this, and the run stats
+include the rows sent.
 
 ## DCP across laptops (decision 0004)
 

@@ -103,7 +103,7 @@ function addSimulated(dataset) {
     simulated: true,
     name: pick,
     dataset: pick,
-    device: `sim-laptop-${n}`,
+    device: `sim-machine-${n}`,
     rows: data.X.length,
     featureNames: data.featureNames,
   });

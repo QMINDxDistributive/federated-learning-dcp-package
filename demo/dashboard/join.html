@@ -4,52 +4,65 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Join Federated Training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0b0f1a; --panel: #121829; --panel-2: #182036; --line: #263052; --line-2: #34406a;
-    --text: #e8ecf8; --muted: #8a93b2; --dim: #5d6688; --accent: #5b8cff; --good: #3ecf8e; --warn: #f5b942; --bad: #ff6b6b;
-    --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+    --bg: #f6f6f7; --surface: #ffffff; --surface-2: #fafafa; --border: #e6e6e9; --border-strong: #d4d4d8;
+    --text: #18181b; --text-2: #3f3f46; --muted: #71717a; --faint: #a1a1aa;
+    --accent: #2563eb; --accent-soft: #eff4ff; --data: #d97706; --bad: #dc2626;
+    --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
-  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.01em; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+  main { max-width: 680px; margin: 0 auto; padding: 40px 16px 56px; }
+  .mark { width: 32px; height: 32px; border-radius: 8px; background: var(--text); display: grid; place-items: center; margin-bottom: 18px; }
+  h1 { font-size: 24px; font-weight: 600; margin: 0 0 6px; letter-spacing: -.015em; }
   .lede { color: var(--muted); margin: 0 0 28px; }
-  .step { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 14px; }
-  .step h2 { font-size: 15px; margin: 0 0 10px; display: flex; gap: 10px; align-items: center; }
-  .step h2 .n { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 13px; flex: none; }
-  .step p { color: var(--muted); font-size: 14px; margin: 6px 0; }
+  .step { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(16, 24, 40, .04); }
+  .step h2 { font-size: 15px; font-weight: 600; margin: 0 0 12px; display: flex; gap: 10px; align-items: center; }
+  .step h2 .n { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border-strong); color: var(--text-2); display: grid; place-items: center; font-size: 12px; font-weight: 600; flex: none; }
+  .step p { color: var(--muted); font-size: 14px; margin: 8px 0; }
   .choice { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
-  .choice label { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 14px; }
-  .choice label:has(input:checked) { border-color: var(--accent); background: rgba(91, 140, 255, .12); }
-  .choice small { color: var(--dim); }
-  input[type=text] { width: 100%; padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg); color: var(--text); font: 14px var(--mono); }
-  .tabs { display: flex; gap: 4px; margin-bottom: 8px; }
-  .tabs button { background: none; border: 1px solid var(--line-2); color: var(--muted); border-radius: 6px; padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer; }
-  .tabs button.on { color: var(--text); background: var(--line); }
-  .cmd { position: relative; background: #070a12; border: 1px solid var(--line); border-radius: 8px; padding: 14px 14px 14px 14px; font: 13px/1.6 var(--mono); color: #cfe0ff; word-break: break-all; white-space: pre-wrap; }
-  .copy { margin-top: 10px; background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 9px 18px; font: 600 14px system-ui; cursor: pointer; }
-  .note { font-size: 13px; color: var(--dim); }
-  .demo { border-left: 3px solid var(--warn); padding-left: 10px; }
-  .err { color: var(--bad); }
-  code { font-family: var(--mono); font-size: 13px; color: #cfe0ff; }
-  ul { margin: 6px 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+  .choice label { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border-strong); border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 14px; background: var(--surface); }
+  #samples label { text-transform: capitalize; }
+  .choice label:hover { background: var(--surface-2); }
+  .choice label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .choice input { accent-color: var(--accent); margin: 0; }
+  .choice small { color: var(--faint); text-transform: none; }
+  input[type=text] { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: 13px var(--mono); }
+  input[type=text]:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .tabs { display: inline-flex; padding: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; }
+  .tabs button { background: none; border: 0; color: var(--muted); border-radius: 6px; padding: 4px 12px; font: 500 13px var(--sans); cursor: pointer; }
+  .tabs button.on { color: var(--text); background: var(--surface); box-shadow: 0 1px 2px rgba(16, 24, 40, .08); }
+  .cmd { background: #18181b; border-radius: 8px; padding: 14px 16px; font: 12.5px/1.65 var(--mono); color: #e4e4e7; word-break: break-all; white-space: pre-wrap; }
+  .copy { margin-top: 10px; background: var(--text); color: #fff; border: 0; border-radius: 8px; padding: 8px 16px; font: 500 13.5px var(--sans); cursor: pointer; }
+  .copy:hover { background: #27272a; }
+  .note { font-size: 13px; color: var(--muted); }
+  .demo { border-left: 2px solid var(--data); padding-left: 10px; }
+  .err { color: var(--bad); font-size: 14px; }
+  code { font-family: var(--mono); font-size: 12.5px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; color: var(--text-2); }
+  ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 14px; }
+  li { margin: 4px 0; }
 </style>
 </head>
 <body>
 <main>
+  <div class="mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="3" r="1.6"/><circle cx="3" cy="13" r="1.6"/><circle cx="13" cy="13" r="1.6"/><path d="M7.2 4.4 3.8 11.6M8.8 4.4l3.4 7.2"/></svg></div>
   <h1>Join the federated training</h1>
-  <p class="lede">Your laptop becomes one of the sites. Your rows stay on this laptop; only model numbers go back to the coordinator.</p>
+  <p class="lede">This computer becomes one of the data holders. Its rows stay here; only model numbers go back to the coordinator.</p>
 
   <div class="step">
-    <h2><span class="n">1</span>Choose the data this laptop holds</h2>
+    <h2><span class="n">1</span>Choose the data this computer holds</h2>
     <div class="choice">
       <label><input type="radio" name="src" value="sample" checked> Demo sample state</label>
       <label><input type="radio" name="src" value="file"> My own file</label>
     </div>
     <div id="sampleBox">
       <div class="choice" id="samples"></div>
-      <p class="demo note">Demo setup: the first run saves this state's sample file on your laptop, and later runs read it from there. Do this before the presentation.</p>
+      <p class="demo note">Demo setup: the first run saves this state's sample file on this computer, and later runs read it from there. Do this before the presentation.</p>
     </div>
     <div id="fileBox" hidden>
       <input type="text" id="file" value="data.json" aria-label="Path to your data file" spellcheck="false">
@@ -58,8 +71,8 @@
   </div>
 
   <div class="step">
-    <h2><span class="n">2</span>Run this in a terminal on this laptop</h2>
-    <p>Needs Node.js 20 or newer. It downloads a small agent, serves your data to this laptop only, and starts a DCP worker.</p>
+    <h2><span class="n">2</span>Run this in a terminal on this computer</h2>
+    <p>Needs Node.js 20 or newer. It downloads a small agent, serves your data to this computer only, and starts a DCP worker.</p>
     <div class="tabs" role="tablist">
       <button data-os="win">Windows (PowerShell)</button>
       <button data-os="unix">macOS / Linux</button>
@@ -70,7 +83,7 @@
 
   <div class="step">
     <h2><span class="n">3</span>Watch the coordinator screen</h2>
-    <p>Your laptop appears in the diagram as soon as the agent connects. Leave the terminal open while training runs; press Ctrl+C to leave.</p>
+    <p>This computer appears in the diagram as soon as the agent connects. Leave the terminal open while training runs; press Ctrl+C to leave.</p>
     <ul>
       <li>The agent never sends your rows. It sends their count and feature names, and during training only gradients, Hessians and losses.</li>
       <li>Your data is served on <code>localhost</code> only, so no other machine can read it.</li>
