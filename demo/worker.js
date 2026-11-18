@@ -30,7 +30,7 @@ function stopAll() {
   for (const c of children) {
     if (c.exitCode !== null) continue;
     if (WIN) execFile('taskkill', ['/pid', String(c.pid), '/T', '/F'], () => {});
-    else c.kill();
+    else { try { process.kill(-c.pid, 'SIGTERM'); } catch (_) { c.kill(); } } // whole process group (spawned detached)
   }
 }
 
@@ -59,6 +59,8 @@ process.exit(1);
  * - --dcp-identity=<random key> (the = form; "--dcp-identity <key>" is rejected): without it the worker uses ~/.dcp/id.keystore and, on a machine
  *   that has one, stops to ask for its password. A worker does not need the owner's identity,
  *   so each run gets a throwaway one. Earnings go to the worker's unclaimed earnings account.
+ * - --no-pidfile: the default pid file on macOS/Linux is /var/run/dcp-worker.pid, which a normal
+ *   user cannot write, so the worker exits with code 81. The agent tracks its own processes.
  */
 function workerIdentity() {
   return require('node:crypto').randomBytes(32).toString('hex');
@@ -68,6 +70,7 @@ function run(label, args, env) {
   const child = spawn('npx', ['--yes', '-p', `dcp-worker@${DCP_WORKER_VERSION}`, ...args], {
     stdio: ['ignore', 'pipe', 'pipe'],
     shell: WIN,
+    detached: !WIN, // own process group, so Ctrl+C can stop npx and its children
     env: { ...process.env, ...env },
   });
   const print = (chunk) => chunk.toString().split(/\r?\n/).filter(Boolean).forEach((l) => console.log(`[${label}] ${l}`));
@@ -96,7 +99,7 @@ async function main() {
     { I_WANT_AN_INSECURE_DCP_WORKER: 'badly' });
   setTimeout(() => {
     console.log(`Starting the DCP worker in group ${group.joinKey} only. Ctrl+C to stop.`);
-    run('worker', ['dcp-worker', '--output=stdio', `--dcp-identity=${workerIdentity()}`, '--no-global', q(`--join=${group.joinKey},${group.joinSecret}`)]);
+    run('worker', ['dcp-worker', '--output=stdio', `--dcp-identity=${workerIdentity()}`, '--no-pidfile', '--no-global', q(`--join=${group.joinKey},${group.joinSecret}`)]);
   }, 3000);
 }
 
