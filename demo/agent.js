@@ -126,6 +126,18 @@ process.exit(1);
   });
 }
 
+/**
+ * Worker flags that matter (dcp-worker 4.7.0):
+ * - --output=stdio: the help text says "text|dashboard|none", but 4.7.0 ships stdio, dashboard
+ *   and none; "text" crashes the worker at startup (Unknown console type 'text', exit 25).
+ * - --dcp-identity=<random key> (the = form; "--dcp-identity <key>" is rejected): without it the worker uses ~/.dcp/id.keystore and, on a machine
+ *   that has one, stops to ask for its password. A worker does not need the owner's identity,
+ *   so each run gets a throwaway one. Earnings go to the worker's unclaimed earnings account.
+ */
+function workerIdentity() {
+  return require('node:crypto').randomBytes(32).toString('hex');
+}
+
 async function startWorker(group, port) {
   const run = (label, args, env) => {
     const child = spawn('npx', ['--yes', '-p', `dcp-worker@${DCP_WORKER_VERSION}`, ...args], {
@@ -150,7 +162,7 @@ async function startWorker(group, port) {
   // I_WANT_AN_INSECURE_DCP_WORKER skips the 5 s "not for production" countdown; the warning above says it.
   run('evaluator', ['dcp-evaluator-start', '-t', 'node', '-e', q(process.execPath), `--additional-files=${q(evaluator)}`],
     { I_WANT_AN_INSECURE_DCP_WORKER: 'badly' });
-  const workerArgs = ['dcp-worker', '--output', 'text', '--no-global', '--allow-origin', `http://localhost:${port}`, '--join', q(`${group.joinKey},${group.joinSecret}`)];
+  const workerArgs = ['dcp-worker', '--output=stdio', `--dcp-identity=${workerIdentity()}`, '--no-global', `--allow-origin=http://localhost:${port}`, q(`--join=${group.joinKey},${group.joinSecret}`)];
   setTimeout(() => run('worker', workerArgs), 3000);
 }
 

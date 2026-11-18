@@ -16,7 +16,8 @@
     "demo:baselines": "node demo/baselines.js",
     "dcp:hello": "node demo/hello-dcp.js",
     "demo:agent": "node demo/agent.js",
-    "demo:worker": "node demo/worker.js"
+    "demo:worker": "node demo/worker.js",
+    "demo:check-groups": "node demo/check-groups.js"
   },
   "dependencies": {
     "dcp-client": "^5.9.0"
