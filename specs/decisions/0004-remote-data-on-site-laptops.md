@@ -79,12 +79,36 @@ Option 2 (Proposed) for the demo's DCP mode. The library keeps both paths: `site
 - The demo's evaluator runs in Node mode (`dcp-evaluator-start -t node -e <node> --additional-files=<evaluator-node.js>`), which `dcp-worker` warns is not
   for production. TODO: confirm with Distributive whether to use the native evaluator or the
   Windows screensaver installer on the teammates' laptops instead.
-- TODO: confirm with Distributive that `RemoteDataSet` URLs on `localhost` are fetched by the
-  worker as expected end to end. This is tested locally (site agent and work function), but
-  not yet on DCP.
-- 2026-11-17: blocked on compute groups. We cannot create them (dcp.cloud credential lists only
-  store credentials for existing groups), so Distributive has to (A1). Per Alex's advice, the demo
-  also has a **DCP · data in job** mode (0001 path, public network) for the showcase; this
-  decision's mode stays as the "real deployment" story until the groups exist.
+- **Tested end to end on DCP, 2026-11-17.** Three machines (two Windows laptops and one Mac),
+  each holding one state's dataset, each worker in its own compute group (`qmind-fl-1` to
+  `qmind-fl-5`, created by Distributive). Every job ran only on its own machine's worker, which
+  read the rows from `localhost` through `RemoteDataSet`; only aggregates came back, and
+  training converged. See "End-to-end test" below.
+- Compute groups: Distributive created them (A1); we cannot. Per Alex, DCP · data in job mode
+  (0001 path) sends every job to one shared group (`queens`), which is fine while rows travel in
+  the slices.
 - Once accepted, R6 and R7 hold for the demo's DCP mode, and the shared plan's "DCP remote
   data", "Compute groups" and "Worker setup script" sections can link here.
+
+## End-to-end test (2026-11-17)
+
+Setup: coordinator on a Windows laptop (`npm run demo:dcp`), which also joined as one machine;
+a second Windows laptop and a Mac joined from the join link, each with a different sample state.
+`demo/devices.json` held five Distributive-created groups (`qmind-fl-1` to `qmind-fl-5`, one
+shared secret). Result: all machines' jobs ran on their own workers, rows were read locally, and
+training converged with the results popup.
+
+Problems found and fixed on the way (all in `demo/agent.js` / `demo/worker.js` unless noted):
+
+| Problem | Cause | Fix |
+|---|---|---|
+| Groups made on dcp.cloud got "Access Denied" | Credential lists store credentials, they do not create groups | Distributive created the groups; `npm run demo:check-groups` checks every group |
+| `spawn bin\dcp-evaluator ENOENT` | `dcp-evaluator-start -t node` still launches the native binary | Pass `-e <node> --additional-files=<dcp-client>/libexec/evaluator-node.js` |
+| Worker exits with code 25 | `--output text` is in dcp-worker's help but not in 4.7.0 | `--output=stdio` |
+| Worker asks for a password | It uses `~/.dcp/id.keystore` when no identity is given | Throwaway `--dcp-identity=<random key>` per run |
+| `--dcp-identity <key>` rejected | Only the `=` form is accepted | `=` form for all worker flags |
+| Mac worker exits with code 81 | Default pid file `/var/run/dcp-worker.pid` is not writable | `--no-pidfile` |
+| Evaluator left running after Ctrl+C (macOS) | Only the npx wrapper was stopped | Children run in their own process group, which is stopped as a whole |
+| Machines stuck on "Computing gradient" | Late DCP status events (`src/runners/dcp.js`, dashboard) | Ignore pick-ups after a job's result |
+| Identity password asked once per job (terminal) | Identity keystore not unlocked up front (`src/runners/dcpInit.js`) | Unlock once |
+

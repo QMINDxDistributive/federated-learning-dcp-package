@@ -181,4 +181,7 @@ register it.
 | `No compute groups configured` (dashboard banner) | `demo/devices.json` missing or all `TODO` | Fill in `devices.json`, or use DCP · data in job mode |
 | `Access Denied::Failed to add job ... to any of the desired compute groups` | The job's group credentials were rejected | Check the key and secret, and that the group exists |
 | `insufficient information to join compute group` (worker) | The group does not exist, or its secret is empty | Ask Distributive to create it; check `--show=compute-groups` |
+| Worker `exit code = 25`, "Unknown console type 'text'" | Old agent using `--output text` | Rerun the join command (downloads the current agent) |
+| Worker `exit code = 81` and a pidfile EACCES warning (macOS) | Old agent without `--no-pidfile` | Rerun the join command; first `lsof -ti :9000 \| xargs kill` if an old evaluator is still running |
+| A laptop's worker asks for a password | Old agent without a throwaway identity | Rerun the join command |
 | `spawn bin\dcp-evaluator ENOENT` | `dcp-evaluator-start -t node` alone looks for the native evaluator | Use `demo/agent.js`, which passes the Node evaluator's paths (see [questions for Alex](../specs/shared/questions-for-alex.md)) |
