@@ -24,8 +24,22 @@ npm install
 npm test               # includes the federated vs scikit-learn check (1e-6)
 npm run demo           # dashboard at http://localhost:3000 (this computer only)
 npm run demo:dcp       # same, DCP mode selected
+npm run demo:dev       # restarts by itself when the code changes (add -- --dcp for DCP mode)
 node demo/run.js --cli # terminal only: simulation with the five sample states
 ```
+
+**Restarting does not reset the session.** The join link (its token) and everyone who joined,
+including simulated machines and each laptop's compute group, are saved in `demo/.session.json`
+(gitignored). After a restart the same link still works and laptops stay connected: their
+agents keep sending heartbeats, and if the coordinator has forgotten them they rejoin by
+themselves, keeping their name and compute group. An open dashboard reloads itself after a
+restart, and when a dashboard file changes. **Train again** reruns without restarting.
+
+- To start over with a new link and nobody joined: `npm run demo -- --new-session`. Agents from the
+  old session then stop and say to use the new link.
+- Removing a machine on the dashboard (×) stops its agent; it does not rejoin.
+- DCP passwords are still asked once per coordinator start (they are never saved). Set
+  `DCP_API_KEY` to skip the identity one.
 
 The dashboard has three modes:
 

@@ -8,6 +8,13 @@
  *   node demo/run.js --dcp      default the dashboard to DCP mode (laptops)
  *   node demo/run.js --dcp-job  default the dashboard to DCP mode (data in the job)
  *   node demo/run.js --cli      no dashboard: simulation with the five sample states
+ *   node demo/run.js --new-session   forget the saved session: new join link, nobody joined
+ *   npm run demo:dev            restart automatically when code changes (node --watch)
+ *
+ * The session (join token and who has joined) is saved in demo/.session.json, so restarting the
+ * coordinator keeps the same join link and the same laptops. Agents also rejoin by themselves if
+ * the coordinator forgets them. The dashboard reloads itself after a restart or when its HTML
+ * changes.
  *
  * Joining (decision 0004): the dashboard always shows a join link and QR code. A laptop opens it,
  * runs the one command it shows (demo/agent.js), and appears on the dashboard. Any number can
@@ -37,7 +44,7 @@ const path = require('node:path');
 const { train, predictProba } = require('../src');
 const { workFunction } = require('../src/lr/workFunction');
 const { loadTestSet, SITES_DIR } = require('./sites');
-const { createRegistry, loadGroupPool } = require('./participants');
+const { createRegistry, loadGroupPool, sessionStore, SESSION_FILE } = require('./participants');
 const { auc, accuracy } = require('./metrics');
 const { passwordsNeeded } = require('../src/runners/dcpInit');
 
@@ -83,9 +90,12 @@ function emit(e) {
 // ---- Participants ----
 
 const groups = loadGroupPool();
+if (argv.includes('--new-session')) fs.rmSync(SESSION_FILE, { force: true });
 const registry = createRegistry({
   groups,
   featureNames: testSet.featureNames,
+  // --cli runs are throwaway: no saved session.
+  store: argv.includes('--cli') ? null : sessionStore(SESSION_FILE),
   onChange: (action, participant) => {
     emit({ type: 'participant', action, participant });
     if (action !== 'updated') console.log(`${action}: ${participant.name}${participant.simulated ? ' (simulated)' : ` on ${participant.device}`}`);
@@ -293,6 +303,20 @@ async function runTraining(mode, emitFn, participants) {
 
 // ---- HTTP ----
 
+// Changes on every server start, so an open dashboard can tell it should reload.
+const BOOT_ID = require('node:crypto').randomBytes(6).toString('hex');
+
+// Tell open dashboards to reload when a dashboard file changes (no restart needed for HTML).
+if (!argv.includes('--cli')) {
+  let reloadTimer = null;
+  try {
+    fs.watch(path.join(__dirname, 'dashboard'), () => {
+      clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => emit({ type: 'reload' }), 150);
+    }).unref();
+  } catch (_) { /* fs.watch unsupported: reload by hand */ }
+}
+
 function isLoopback(req) {
   const a = req.socket.remoteAddress || '';
   return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
@@ -370,6 +394,7 @@ function handle(req, res) {
   if (p === '/') return sendFile(res, path.join(__dirname, 'dashboard', 'index.html'), 'text/html; charset=utf-8');
   if (p === '/config') {
     return sendJson(res, 200, {
+      bootId: BOOT_ID,
       defaultMode: argv.includes('--dcp-job') ? 'dcpjob' : argv.includes('--dcp') ? 'dcp' : 'sim',
       dcpJobGroup: groups.shared ? `compute group ${groups.shared.joinKey}` : 'public DCP network',
       joinUrls: joinUrls(),

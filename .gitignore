@@ -4,3 +4,4 @@ demo/data/raw/
 __pycache__/
 *.keystore
 demo/devices.json
+demo/.session.json

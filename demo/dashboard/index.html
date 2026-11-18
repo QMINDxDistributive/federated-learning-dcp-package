@@ -1151,7 +1151,23 @@
       renderJoin();
     }).catch(function () {});
   }, 5000);
-  new EventSource('/events').onmessage = function (m) { handle(JSON.parse(m.data)); };
+  // Reload when the server restarts (new bootId after the event stream reconnects) or a dashboard
+  // file changes ('reload' event). During a run on this server, wait for it to finish.
+  var bootId = null, reloadWhenIdle = false;
+  function reloadSoon() { if (training) reloadWhenIdle = true; else location.reload(); }
+  var events = new EventSource('/events');
+  events.onopen = function () {
+    fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
+      if (bootId && c.bootId !== bootId) { training = false; location.reload(); return; }
+      bootId = c.bootId;
+    }).catch(function () {});
+  };
+  events.onmessage = function (m) {
+    var e = JSON.parse(m.data);
+    if (e.type === 'reload') return reloadSoon();
+    handle(e);
+    if (e.type === 'idle' && reloadWhenIdle) afterAll(function () { location.reload(); });
+  };
 })();
 </script>
 </body>

@@ -21,6 +21,9 @@
  *      Training jobs for this laptop run here, read your rows over loopback, and send back
  *      only aggregates (gradient, Hessian, loss, counts).
  *   4. Sends a heartbeat every 5 seconds. Ctrl+C leaves the session and stops the worker.
+ *      If the coordinator restarts, it remembers this laptop (demo/.session.json). If it has
+ *      forgotten it anyway, the agent rejoins by itself with the same name and, if free, the
+ *      same compute group; the worker is restarted only if the group changed.
  *
  * Data file: JSON { "featureNames": [...], "X": [[...], ...], "y": [0|1, ...], "site"?: "name" }
  */
@@ -95,7 +98,8 @@ function loadData(file) {
 const children = [];
 function killChildren() {
   for (const c of children) {
-    if (c.exitCode !== null) continue;
+    if (c.exitCode !== null || c.killed) continue;
+    c.killed = true;
     // With shell: true on Windows, kill() stops only the shell; taskkill /T stops the whole tree.
     if (process.platform === 'win32') execFile('taskkill', ['/pid', String(c.pid), '/T', '/F'], () => {});
     else { try { process.kill(-c.pid, 'SIGTERM'); } catch (_) { c.kill(); } } // whole process group (spawned detached)
@@ -208,22 +212,27 @@ async function main() {
   });
   const port = server.address().port;
 
+  // Join (or rejoin after the coordinator forgot us), keeping our name and group if we can.
+  const join = () => post(coordinator, '/api/join', {
+    token,
+    name: (me && me.name) || opts.name || data.site || opts.device,
+    dataset: data.site || null,
+    device: opts.device,
+    rows,
+    featureNames: data.featureNames,
+    port,
+    preferGroup: me && me.computeGroup ? me.computeGroup.joinKey : null,
+  });
   try {
-    me = await post(coordinator, '/api/join', {
-      token,
-      name: opts.name || data.site || opts.device,
-      dataset: data.site || null,
-      device: opts.device,
-      rows,
-      featureNames: data.featureNames,
-      port,
-    });
+    me = await join();
   } catch (e) {
     console.error(`\nCould not join ${coordinator}: ${e.message}`);
     if (!e.status) console.error('Check that this laptop is on the same network as the coordinator and the URL is right.');
     process.exit(1);
   }
-  body = JSON.stringify({ ...data, site: me.name, device: opts.device, sourceBytes: bytes });
+  // The work function checks the site label against the job, so it must match our current name.
+  const setBody = () => { body = JSON.stringify({ ...data, site: me.name, device: opts.device, sourceBytes: bytes }); };
+  setBody();
 
   console.log(`\nJoined ${coordinator} as "${me.name}"`);
   console.log(`Data:     ${rows.toLocaleString()} rows from ${opts.data} (stays on this laptop)`);
@@ -243,16 +252,48 @@ async function main() {
     console.log(`  npx -p dcp-worker@${DCP_WORKER_VERSION} dcp-worker --no-global --allow-origin http://localhost:${port} --join ${me.computeGroup.joinKey},<secret>\n`);
   }
 
+  let rejoining = false;
+  async function rejoin() {
+    if (rejoining) return;
+    rejoining = true;
+    try {
+      const before = me.computeGroup ? me.computeGroup.joinKey : null;
+      me = await join();
+      setBody();
+      const after = me.computeGroup ? me.computeGroup.joinKey : null;
+      console.log(`[${stamp()}] Rejoined the coordinator as "${me.name}"${after ? ` (group ${after})` : ''}.`);
+      if (opts.worker && after !== before) {
+        console.log(`[${stamp()}] Compute group changed (${before || 'none'} -> ${after || 'none'}); restarting the DCP worker.`);
+        killChildren();
+        children.length = 0;
+        workerRunning = false;
+        if (me.computeGroup) {
+          await new Promise((r) => setTimeout(r, 1500)); // let the old evaluator release its port
+          startWorker(me.computeGroup, port);
+          workerRunning = true;
+        }
+      }
+    } catch (e) {
+      if (e.status === 403) {
+        console.error(`\n${e.message}\nThe coordinator started a new session. Open its new join link and run the new command.`);
+        return shutdown(1);
+      }
+      // Coordinator still starting or unreachable: the next heartbeat tries again.
+    } finally {
+      rejoining = false;
+    }
+  }
+
   const beat = async () => {
     const alive = workerRunning && children.some((c) => c.exitCode === null);
     try {
       await post(coordinator, '/api/heartbeat', { id: me.id, secret: me.secret, workerRunning: alive || !opts.worker, reads });
     } catch (e) {
-      if (e.status === 404) {
-        console.error(`\nThe coordinator no longer knows this laptop (${e.message}).`);
-        shutdown(1);
-      }
-      // Network blips: keep trying; the coordinator marks us offline after ~15 s.
+      // 404: the coordinator restarted without our session: join again.
+      if (e.status === 404) return rejoin();
+      // 410: removed on the coordinator's dashboard: leave for good.
+      if (e.status === 410) { console.error(`\n${e.message}`); return shutdown(0); }
+      // Network blips or the coordinator restarting: keep trying; it marks us offline after ~15 s.
     }
   };
   const timer = setInterval(beat, HEARTBEAT_MS);

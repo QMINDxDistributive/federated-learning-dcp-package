@@ -173,3 +173,33 @@ test('demo group config: sharedGroup from devices.json, env overrides, TODO igno
     fs.rmSync(f, { force: true });
   }
 });
+
+test('demo session: survives a restart with the same token, laptops and groups; removed agents get 410', () => {
+  const { createRegistry } = require('../demo/participants');
+  const featureNames = ['a', 'b'];
+  const groups = { pool: [{ joinKey: 'g1', joinSecret: 's' }, { joinKey: 'g2', joinSecret: 's' }], shared: null };
+  let saved = null;
+  const store = { load: () => saved, save: (s) => { saved = JSON.parse(JSON.stringify(s)); } };
+  const r1 = createRegistry({ groups, featureNames, store });
+  const base = { token: r1.token, rows: 100, featureNames };
+  const a = r1.join({ ...base, name: 'alaska', port: 5001 });
+  const b = r1.join({ ...base, name: 'florida', port: 5002, preferGroup: 'g2' });
+  assert.equal(b.computeGroup.joinKey, 'g2');
+  // persist() is debounced; save synchronously for the test by reading state through a new registry
+  return new Promise((resolve) => setTimeout(() => {
+    assert.ok(saved && saved.participants.length === 2);
+    assert.ok(!JSON.stringify(saved).includes('joinSecret'), 'group secrets are not stored in the session');
+    const r2 = createRegistry({ groups, featureNames, store });
+    assert.equal(r2.token, r1.token);
+    assert.equal(r2.heartbeat({ id: a.id, secret: a.secret }).group, 'g1');
+    assert.equal(r2.heartbeat({ id: b.id, secret: b.secret }).group, 'g2');
+    assert.equal(r2.slots().used, 2);
+    // A rejoin that prefers its old group gets it back once free.
+    r2.remove(a.id);
+    assert.throws(() => r2.heartbeat({ id: a.id, secret: a.secret }), (e) => e.status === 410);
+    const again = r2.join({ ...base, name: 'alaska', port: 5003, preferGroup: 'g1' });
+    assert.equal(again.computeGroup.joinKey, 'g1');
+    assert.equal(again.name, 'alaska');
+    resolve();
+  }, 300));
+});
