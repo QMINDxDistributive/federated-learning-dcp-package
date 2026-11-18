@@ -32,6 +32,7 @@
     --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .06);
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; } /* .btn sets display, which would otherwise beat hidden */
   html, body { height: 100%; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
@@ -300,6 +301,7 @@
     <button data-mode="dcpjob" title="Real DCP; each state's rows are sent inside its job (demo stand-in for local data)">DCP · data in job</button>
     <button data-mode="sim" title="Everything runs on this computer">Simulation</button>
   </div>
+  <button class="btn ghost" id="reset" hidden title="Clear the last run and go back to Ready. Connected machines stay.">Reset</button>
   <button class="btn" id="train">Start training</button>
 </header>
 
@@ -769,6 +771,7 @@
       afterAll(function () { training = false; document.body.classList.remove('training'); renderJoin(); if (pendingLayout) relayout(); });
     } else if (e.type === 'start') {
       $('results').open && $('results').close();
+      $('reset').hidden = true;
       training = true;
       document.body.classList.add('training');
       pendingLayout = false;
@@ -835,7 +838,7 @@
         layer.coordStatus.textContent = 'Model ready';
         sites.forEach(function (s) { setMachine(s.name, 'sent', 'Done'); });
         feed('coord', 'Model trained · test AUC ' + e.federated.auc.toFixed(3));
-        return sleep(600).then(function () { showResults(e); $('train').disabled = false; });
+        return sleep(600).then(function () { showResults(e); $('train').disabled = false; $('reset').hidden = false; });
       });
     } else if (e.type === 'error') {
       afterAll(function () {
@@ -844,6 +847,7 @@
         layer.coord && layer.coord.classList.remove('busy');
         sites.forEach(function (s) { var o = L[s.name]; if (o && !o.g.classList.contains('failed')) setMachine(s.name, null, 'Stopped'); });
         $('train').disabled = false;
+        $('reset').hidden = false;
       });
     }
   }
@@ -1044,6 +1048,21 @@
     $('results').showModal();
   }
   $('rClose').onclick = function () { $('results').close(); };
+
+  /** Clear the last run from the view and go back to Ready. Only the view: machines stay joined. */
+  function resetView() {
+    if (training) return;
+    $('results').open && $('results').close();
+    run = { jobs: 0, dcc: null, losses: [] };
+    featureNames = null;
+    updateTiles();
+    $('feed').innerHTML = ''; feedN = 0; $('feedCount').textContent = '';
+    $('weights').innerHTML = '<div class="empty-note">Shown after round 0.</div>';
+    showProblem('');
+    $('reset').hidden = true;
+    relayout(); // fresh diagram: machines back to Ready, status bar back to Ready
+  }
+  $('reset').onclick = resetView;
   $('rAgain').onclick = function () { $('results').close(); $('train').click(); };
 
   // ---------- modes, start, passwords ----------
