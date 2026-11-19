@@ -122,6 +122,9 @@ worker runs nothing that isn't attached to it. Ways to remove the manual step ar
    allow Node through the firewall; allow it on private networks. If this computer has several
    network addresses, use **Other address** in the join panel. `PUBLIC_URL` overrides the
    address entirely, e.g. for a tunnel.
+   On a different Wi-Fi (e.g. the showcase venue), devices are often blocked from reaching each
+   other: bring a hotspot or travel router and test the join link early. See
+   [networking](../specs/shared/questions-for-alex.md#networking-different-wi-fi-the-showcase-venue-and-hospitals).
 
 Status: tested end to end on 2026-11-17 with two Windows laptops and a Mac, each in its own
 Distributive-created compute group (see [decision 0004](../specs/decisions/0004-remote-data-on-site-laptops.md#end-to-end-test-2026-11-17)).

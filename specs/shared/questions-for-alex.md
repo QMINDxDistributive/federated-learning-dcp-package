@@ -4,7 +4,7 @@
 |---|---|
 | Owner | Theo |
 | Status | Open |
-| Last updated | 2026-11-17 |
+| Last updated | 2026-11-19 |
 
 Questions to raise with Alex Salgo at Distributive. Each one says why we are asking and what
 it would change. Where a question is also tracked in [open-questions.md](open-questions.md),
@@ -86,3 +86,37 @@ have found is the compute group, so each site needs its own group (see
 | A11 | Can a worker be limited to approved work functions (e.g. by code hash or signature), and not just to specific job IDs? | A hospital must trust our work function: it reads their rows and could return anything. Restricting by job ID (`dcp-worker -j`) does not fit, because we deploy new jobs every round. | OQ-LR5 | Open | |
 | A12 | Can jobs be long-lived and receive new slices each round (e.g. `addSlices`) instead of being redeployed every round? | Would allow one job per site for the whole training run (fewer deploys) and could make A11 easier. | | Open | |
 | A13 | What audit trail does DCP keep of which jobs ran on a worker and what results they returned? | Hospitals will ask for an audit log of everything that left the site. | OQ11 | Open | |
+
+## Networking: different Wi-Fi, the showcase venue, and hospitals
+
+Background (2026-11-19): DCP traffic (scheduler, jobs, payments, workers) goes over the internet,
+so it works on any network with internet access, and each laptop's data is served on `localhost`,
+so the network does not affect it. But in DCP · machines mode the laptops also talk to the
+coordinator **directly** on the local network (`http://<coordinator LAN address>:3000`): the join
+page, the agent download, and a heartbeat every 5 s. That part can break on a different Wi-Fi:
+
+| Risk | Effect | Likelihood |
+|---|---|---|
+| Client isolation (guest, campus such as eduroam, and event Wi-Fi often block device-to-device traffic) | The join link does not load on other laptops at all | High at venues |
+| Windows sets a new network to "Public" | The firewall rule allowing Node was for private networks only, so laptops are blocked | High on a new network |
+| The coordinator's LAN address changes | Laptops that joined earlier have the old address in their command and must run the new one once (the join token itself is kept, see `demo/.session.json`) | Certain when switching networks |
+| No internet | DCP does not work; the QR code and fonts do not load (the link still shows) | Low |
+
+Our plan for the showcase, unless Alex advises otherwise:
+
+1. Bring our own network (a phone hotspot or travel router) and connect every laptop to it,
+   coordinator included: no client isolation, known in advance, internet through the phone.
+   Rehearse on the same network.
+2. On Windows, set that network to **Private**, or allow Node on public networks.
+3. At the venue, test early: open the join link on a second laptop. If it loads, the rest works.
+4. Fallback if laptops cannot reach each other: **DCP · data in job** mode, where workers join
+   via dcp.work and only need internet (the rows then travel in the jobs).
+5. Possible fix, not set up yet: a tunnel (e.g. Cloudflare Tunnel) giving the coordinator a
+   public `https://` address via `PUBLIC_URL`, so laptops can join from any network.
+
+| # | Question | Why it matters | Related | Status | Answer |
+|---|---|---|---|---|---|
+| A14 | Does the showcase venue's Wi-Fi allow devices to connect to each other (no client isolation), or can Distributive provide a network for the demo? Can we bring our own hotspot or router? | DCP · machines mode needs the laptops to reach the coordinator directly. If the venue isolates devices, we need our own network or a tunnel. | | Open | |
+| A15 | Is there a DCP-native way for site agents to register with and send heartbeats to a coordinator, without a direct network connection (for example through the scheduler or a DCP messaging service)? | It would remove the local-network requirement entirely: sites would only need internet, as DCP workers already do. | OQ9 | Open | |
+| A16 | Which domains and ports do DCP workers and clients need (scheduler, bank, package server, websockets)? Do they work behind strict firewalls or proxies? | Venue networks and, above all, hospital networks restrict outbound traffic. Hospitals' IT will ask for an exact allowlist. | OQ7 | Open | |
+| A17 | For real hospitals, which will never share a network with the coordinator: what does Distributive recommend for the coordinator-to-site channel (a public HTTPS coordinator, a tunnel, or something DCP provides)? Is a publicly reachable coordinator acceptable from a security point of view? | Decides how the join and registration flow (decision 0004) works beyond a single room. | A3, A15 | Open | |
