@@ -4,7 +4,7 @@
 |---|---|
 | Owner | Everyone |
 | Status | Skeleton |
-| Last updated | TODO |
+| Last updated | 2026-11-20 |
 | Related | [implementation-plan.md](implementation-plan.md), [test-plan.md](test-plan.md), [open-questions.md](open-questions.md) |
 
 ## Purpose
@@ -44,16 +44,16 @@ Fill in the TODO columns as specs are written.
 
 | ID | Requirement | Shared spec section | Logistic regression section | Random forest section | Test coverage | Status |
 |---|---|---|---|---|---|---|
-| R1 | Users can train one or more ML models using federated learning. | TODO | TODO | TODO | TODO | Not started |
-| R2 | Users can specify model hyperparameters. | TODO | TODO | TODO | TODO | Not started |
-| R3 | Federated training uses DCP. | TODO | TODO | TODO | TODO | Not started |
-| R4 | The primary API accepts hyperparameters and outputs trained model parameters. | TODO | TODO | TODO | TODO | Not started |
-| R5 | Trained model parameters can be used for inference without many dependencies or much boilerplate. | TODO | TODO | TODO | TODO | Not started |
-| R6 | No training data is transmitted via DCP; it remains on the machines performing the training. | TODO | TODO | TODO | TODO | Not started |
-| R7 | Training uses DCP remote data and discrete jobs. | TODO | TODO | TODO | TODO | Not started |
-| R8 | Training succeeds even if not all expected workers participate. | TODO | TODO | TODO | TODO | Not started |
-| R9 | If a job fails after some slices complete, successful slice results are saved so that work does not need to be repeated. | TODO | TODO | TODO | TODO | Not started |
-| R10 | A worker script sets up and runs a DCP worker, joins the correct compute group, and hosts the local data used for training. | TODO | TODO | TODO | TODO | Not started |
+| R1 | Users can train one or more ML models using federated learning. | TODO | TODO | [RF plan](../random-forest/implementation-plan.md#site-training-and-aggregation) | [RF-T1, RF-T2](../random-forest/test-plan.md#functional-and-integration-tests), [RF-T9](../random-forest/test-plan.md#model-quality-and-payload-checks) (RF draft) | Not started |
+| R2 | Users can specify model hyperparameters. | TODO | TODO | [RF plan](../random-forest/implementation-plan.md#candidate-hyperparameters) | [RF-T1, RF-T3](../random-forest/test-plan.md#functional-and-integration-tests) (RF draft) | Not started |
+| R3 | Federated training uses DCP. | TODO | TODO | [RF plan](../random-forest/implementation-plan.md#data-flow-and-dcp-job-design) | [RF-T5](../random-forest/test-plan.md#dcp-failure-recovery-and-data-locality) (RF draft) | Not started |
+| R4 | The primary API accepts hyperparameters and outputs trained model parameters. | TODO | TODO | [RF plan](../random-forest/implementation-plan.md#architecture) | [RF-T2, RF-T4](../random-forest/test-plan.md#functional-and-integration-tests) (RF draft) | Not started |
+| R5 | Trained model parameters can be used for inference without many dependencies or much boilerplate. | TODO | TODO | [RF plan](../random-forest/implementation-plan.md#serialization-for-inference) | [RF-T4](../random-forest/test-plan.md#functional-and-integration-tests) (RF draft) | Not started |
+| R6 | No training data is transmitted via DCP; it remains on the machines performing the training. | TODO | TODO | [RF plan](../random-forest/implementation-plan.md#data-flow-and-dcp-job-design) | [RF-T8](../random-forest/test-plan.md#dcp-failure-recovery-and-data-locality) (RF draft) | Not started |
+| R7 | Training uses DCP remote data and discrete jobs. | TODO | TODO | [RF plan](../random-forest/implementation-plan.md#data-flow-and-dcp-job-design) | [RF-T5, RF-T8](../random-forest/test-plan.md#dcp-failure-recovery-and-data-locality) (RF draft) | Not started |
+| R8 | Training succeeds even if not all expected workers participate. | TODO | TODO | [RF plan](../random-forest/implementation-plan.md#failure-handling) | [RF-T6](../random-forest/test-plan.md#dcp-failure-recovery-and-data-locality) (RF draft) | Not started |
+| R9 | If a job fails after some slices complete, successful slice results are saved so that work does not need to be repeated. | TODO | TODO | [RF plan](../random-forest/implementation-plan.md#failure-handling) | [RF-T7](../random-forest/test-plan.md#dcp-failure-recovery-and-data-locality) (RF draft) | Not started |
+| R10 | A worker script sets up and runs a DCP worker, joins the correct compute group, and hosts the local data used for training. | TODO | TODO | [RF plan](../random-forest/implementation-plan.md#data-flow-and-dcp-job-design) | [RF-T5, RF-T8](../random-forest/test-plan.md#dcp-failure-recovery-and-data-locality) (RF draft) | Not started |
 
 ### Additional functional requirements
 

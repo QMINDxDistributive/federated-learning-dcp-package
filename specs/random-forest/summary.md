@@ -3,64 +3,18 @@
 | Field | Value |
 |---|---|
 | Owner | Nate, Mohsan, Ivan |
-| Status | Skeleton |
-| Last updated | TODO |
-| Related | [implementation-plan.md](implementation-plan.md), [test-plan.md](test-plan.md), [shared summary](../shared/summary.md) |
-
-## Purpose
-
-_What does the random forest track deliver? Why random forest alongside logistic regression?_
-
-- TODO
-
-## Users
-
-_Do random forest users differ from the users in the [shared summary](../shared/summary.md#users)?_
-
-- TODO
+| Status | Draft |
+| Last updated | 2026-11-20 |
+| Related | [Implementation plan](implementation-plan.md), [test plan](test-plan.md), [shared requirements](../shared/summary.md#requirements-traceability) |
 
 ## Scope
 
-_What is in scope for this track? Classification, regression, or both? Which training
-approach (local trees vs shared split statistics)? (TODO: record as a decision.)_
+Train one binary classifier across sites on DCP. Each site trains a batch of trees. The coordinator combines the batches into a single forest and exports versioned JSON for inference. [Proposed decision 0005](../decisions/0005-rf-site-trained-trees.md)
 
-- TODO
+Site operators supply rows with the same ordered numeric features and labels coded `0` or `1`. The coordinator sets the tree budget and minimum site count. If a job fails, the coordinator can reuse saved batches and finish with the sites that responded, provided they meet the minimum.
 
-## Non-goals
+The proof of concept uses public or synthetic data. Regression, multiclass classification, imputation, and automatic feature engineering are outside its scope.
 
-- TODO
+## What needs review
 
-## Functional requirements
-
-_Which shared requirements (R1–R10) does this track address, and where? Update the random
-forest column of the traceability table in the [shared summary](../shared/summary.md#requirements-traceability)._
-
-- TODO
-- TODO: track-specific requirements, if any
-
-## Constraints
-
-_What constraints are specific to random forest on DCP (e.g. size of trees or statistics
-sent, privacy exposure, heterogeneous sites, DCP runtime limits)?_
-
-- TODO
-
-## Inputs
-
-_What hyperparameters are accepted? What local data format do workers need? Are
-categorical features supported?_
-
-- TODO: hyperparameters
-- TODO: local data format
-
-## Outputs
-
-_What does the trained forest look like? How is it serialized for inference (R5)?_
-
-- TODO
-
-## Open questions
-
-Add to [shared open questions](../shared/open-questions.md) with area `Random forest`.
-
-- TODO
+Equal tree budgets give a small site the same vote as a large one. Test what that does to accuracy and ROC AUC on a shared holdout before choosing a weighting rule. The team also needs to agree on minimum participation, the DCP data path, and quality and payload limits. [Open questions](../shared/open-questions.md) · [Quality and size checks](test-plan.md#model-quality-and-payload-checks)

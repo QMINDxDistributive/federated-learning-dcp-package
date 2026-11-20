@@ -3,113 +3,60 @@
 | Field | Value |
 |---|---|
 | Owner | Nate, Mohsan, Ivan |
-| Status | Skeleton |
-| Last updated | TODO |
-| Related | [summary.md](summary.md), [test-plan.md](test-plan.md), [shared implementation plan](../shared/implementation-plan.md) |
+| Status | Draft |
+| Last updated | 2026-11-20 |
+| Related | [Summary](summary.md), [test plan](test-plan.md), [shared plan](../shared/implementation-plan.md), [proposed decision 0005](../decisions/0005-rf-site-trained-trees.md) |
 
 ## Architecture
 
-_How does this track plug into the shared architecture? Where are trees built, and where
-is the forest assembled?_
+The coordinator validates the run settings, dispatches work, and saves each valid tree batch as it arrives. DCP workers and the local test runner call the same site training function. A separate predictor loads the exported forest.
 
-- TODO
+## Data flow and DCP job design
 
-## Modules and responsibilities
+Send one job with one slice per site. Each slice gets the run ID, site ID, feature order, seed, and tree settings. Jobs can run in parallel. A loader supplies the rows.
 
-| Module | Responsibility | Runs where | Owner |
-|---|---|---|---|
-| TODO | TODO | TODO | TODO |
+- **Slice input.** Under the proposed v0.1 design, public or synthetic rows travel in the slice. Full R6 and R7 are deferred in this mode. [Proposed decision 0001](https://github.com/QMINDxDistributive/federated-learning-dcp-package/blob/bb934da0d2c547e9665f2a83fbde580bdc1888ed/specs/decisions/0001-v0-1-send-data-with-slices.md)
+- **Remote data.** Route the job to the site's worker and verify that it loads rows on the site machine. Worker setup and routing follow the shared DCP decisions.
 
-## Data flow
+The response contains run and site IDs, a schema identifier or feature order, and the tree batch. Keep rows and bootstrap indexes out of responses, saved batches, logs, and exports.
 
-_What moves between the coordinator and workers during training? Confirm no training data
-leaves a worker (R6)._
+## Site training and aggregation
 
-- TODO
+1. Check feature names and order, finite numeric values, and binary labels. A site needs both classes and at least as many rows as the minimum leaf size. Sites agree on units and category encoding before training.
+2. For each tree, sample the site's row count with replacement. Derive the random stream from the run seed, site ID, and tree index. At each node, sample candidate features and choose the split with the greatest Gini gain. Stop at a pure node, the depth limit, or when no improving split meets the minimum leaf size. Break split ties deterministically. A single-class bootstrap sample produces one leaf.
+3. Return the requested number of trees. Accept one valid batch per planned site and assemble batches in stable site order. Each tree gets one vote. Record contributing and missing sites. Compare this equal-site baseline with row-weighted voting before settling the API.
 
-## DCP job design
+### Candidate hyperparameters
 
-_How does training map onto DCP discrete jobs and slices? One slice per site, per tree,
-per tree level? How are remote data and compute groups used? See
-[shared DCP job design](../shared/implementation-plan.md#dcp-job-design)._
+| Setting | Draft validation |
+|---|---|
+| Trees per site | Positive integer, capped by payload budget |
+| Maximum depth | Nonnegative integer, capped by runtime and payload budgets |
+| Minimum leaf size | Positive integer |
+| Features per split | Integer from 1 through the feature count |
+| Seed | Integer in the supported range |
+| Minimum successful sites | Integer from 2 through the planned site count |
 
-- TODO
+Check settings before dispatch. Defaults, upper bounds, and API names are open.
 
-## Training rounds or aggregation
+### Privacy and result size
 
-### How trees or split statistics are trained and combined
+Thresholds can expose feature ranges or rare values. A leaf label can reveal information about a small group. The minimum leaf size counts bootstrap draws, which can repeat the same record. Treat trees as potentially sensitive and use public or synthetic data.
 
-_Do sites train whole trees locally and the coordinator combines them, or do sites
-compute split statistics that the coordinator uses to grow shared trees? Is there more
-than one round? Record the chosen approach as a decision._
-
-- TODO
-
-### What each participant sends
-
-_What exactly does a worker return (trees, split candidates, histograms, counts)? How big
-is it? Does it depend on the number of rows, features, or classes?_
-
-- TODO
-
-### How heterogeneous sites are handled
-
-_How do we handle sites with different sample sizes, label distributions, feature ranges,
-or missing features? Are site contributions weighted? Must all sites share a schema?_
-
-- TODO
-
-### Privacy risks of shared information
-
-_What could someone learn about a site's data from what it sends (e.g. leaf values, split
-thresholds, counts in small leaves)? What mitigations are in scope for the proof of
-concept? What risks are accepted and documented?_
-
-| Shared item | What it could reveal | Mitigation | Accepted? |
-|---|---|---|---|
-| TODO | TODO | TODO | TODO |
-
-### Hyperparameters
-
-| Hyperparameter | Description | Default | Valid values | Validated where |
-|---|---|---|---|---|
-| TODO | TODO | TODO | TODO | TODO |
+At depth `D` with the root at zero, a batch of `T` trees has at most `T × (2^(D+1) - 1)` nodes. Measure runtime and serialized bytes before setting limits.
 
 ## Serialization for inference
 
-_How is the final forest serialized? Is it the shared [model output format](../shared/implementation-plan.md#model-output-format)?
-What is needed to load it and predict with minimal dependencies and boilerplate (R5)?
-Is the format versioned? How large can it get?_
+Export versioned JSON with ordered feature names, tree roots, and training metadata. A split stores a feature index, finite threshold, and two children. A leaf stores its majority class.
 
-- TODO
+Go left at or below the threshold and right otherwise. Predict the majority vote. Use class `0` for voting ties and leaf ties during training. The fraction of class `1` votes is an uncalibrated score. Reject unknown versions, malformed trees, and rows with the wrong length or non-finite values. Prediction needs only JSON and numeric comparisons.
 
 ## Failure handling
 
-_What happens if a site drops out (R8)? Can the forest be built from the sites that
-finished? How are completed slice results (e.g. finished trees or statistics) reused
-after a failure (R9)?_
+Retry failed or timed-out jobs under the shared policy. Save one validated batch per run and site. Reuse it only if the schema, settings, seed, and input snapshot match. Rerun the site if the snapshot cannot be verified. Ignore duplicate results.
 
-- TODO
+After retries, return a forest only if enough sites succeeded. Report missing sites and the tree count. Below the minimum, fail and retain completed batches for retry. Timeout, storage, and retention are still open. [Shared open questions](../shared/open-questions.md)
 
 ## Dependencies
 
-_What does this track need beyond shared dependencies? Add every dependency to
-[dependencies.md](../shared/dependencies.md)._
-
-- TODO
-
-## Work breakdown
-
-| Task | Description | Requirement IDs | Owner | Status |
-|---|---|---|---|---|
-| TODO | TODO | TODO | TODO | Not started |
-
-## Owners
-
-| Area | Owner(s) |
-|---|---|
-| Tree / split-statistic training | TODO |
-| Aggregation / forest assembly | TODO |
-| Heterogeneous sites | TODO |
-| Privacy analysis | TODO |
-| Serialization for inference | TODO |
+Inference has no package dependencies. Any training dependency needs approval. [Dependency policy](../shared/dependencies.md)

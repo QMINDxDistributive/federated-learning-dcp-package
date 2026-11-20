@@ -4,7 +4,7 @@
 |---|---|
 | Owner | Everyone |
 | Status | Skeleton |
-| Last updated | TODO |
+| Last updated | 2026-11-20 |
 
 Add anything unknown here instead of guessing. When a question is resolved, set its
 status to `Resolved` and link the decision record in `specs/decisions/`.
@@ -25,3 +25,8 @@ Status values: `Open`, `In discussion`, `Resolved`.
 | OQ10 | What is the minimum worker participation for a training run to count as successful (R8)? | Shared | Repo setup | TODO | Open | |
 | OQ11 | Where are successful slice results persisted (R9), and who can access them? | Shared | Repo setup | TODO | Open | |
 | OQ12 | TODO | | | | Open | |
+| OQ-RF1 | Should the first forest use site-trained trees and equal votes per tree with a fixed budget per site? When should site sample size affect a site's voting weight? | Random forest | RF draft | RF track | In discussion | [Proposed decision 0005](../decisions/0005-rf-site-trained-trees.md) |
+| OQ-RF2 | Will the first RF DCP run send public or synthetic rows in slices, or use remote data? Which release includes the live DCP loop? | Random forest | RF draft | RF track and shared DCP owners | Open | |
+| OQ-RF3 | What minimum site count or coverage makes a partial forest usable, and how should RF inherit the shared retry and result storage policies? See OQ10 and OQ11. | Random forest | RF draft | RF track | Open | |
+| OQ-RF4 | Which held-out dataset, baseline, and quality threshold are required for sign-off? See OQ5. | Random forest | RF draft | RF track | Open | |
+| OQ-RF5 | What tree settings and defaults fit the agreed runtime, result payload, and model size budgets? See OQ7. | Random forest | RF draft | RF track | Open | |

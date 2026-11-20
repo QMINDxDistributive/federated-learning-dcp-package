@@ -3,78 +3,35 @@
 | Field | Value |
 |---|---|
 | Owner | Nate, Mohsan, Ivan |
-| Status | Skeleton |
-| Last updated | TODO |
-| Related | [summary.md](summary.md), [implementation-plan.md](implementation-plan.md), [shared test plan](../shared/test-plan.md) |
+| Status | Draft |
+| Last updated | 2026-11-20 |
+| Related | [Summary](summary.md), [implementation plan](implementation-plan.md), [shared test plan](../shared/test-plan.md) |
 
-> Each test should reference the requirement IDs it covers.
+## Functional and integration tests
 
-Test case format: `ID | description | requirement IDs | expected result | status`
+| ID | Test | Requirements | Pass condition |
+|---|---|---|---|
+| RF-T1 | Train twice on the same seeded fixture. | R1, R2 | Identical batches with the requested count and valid splits, depth, and leaf sizes. |
+| RF-T2 | Return local site results out of order. Include a tied vote. | R1, R4 | One batch per site, stable tree order, correct metadata and predictions. |
+| RF-T3 | Try invalid settings, reordered features, non-finite values, invalid labels, and a single-class site. | R2, R4 | Bad settings fail before dispatch. Invalid data produce a site-specific error and no accepted batch. |
+| RF-T4 | Reload the JSON and predict. Try an unknown version, malformed tree, and invalid row. | R4, R5 | Predictions match before and after export, with no inference dependencies. Invalid input fails clearly. |
 
-## Unit tests
+## DCP, failure recovery, and data locality
 
-_What can be tested in isolation (local tree or statistic computation, combining,
-prediction, serialization and loading)?_
+| ID | Test | Requirements | Pass condition |
+|---|---|---|---|
+| RF-T5 | Run the same seeded fixture locally and on DCP. | R3, R4, R10 | Workers start and jobs route as intended. Each successful site returns one batch. Predictions match. |
+| RF-T6 | Drop sites until exactly the minimum remain. Repeat with one fewer. | R8 | At the minimum, return the successful batches and report missing sites. Below it, fail and retain completed batches. |
+| RF-T7 | Interrupt after a batch is saved. Resume with identical inputs, then with changed data or settings. Send a duplicate result. | R9 | Identical inputs reuse the saved batch. Changed inputs prevent reuse. Duplicate results count once. |
+| RF-T8 | Inspect inputs, results, saved batches, logs, and exports. | R6, R7, R10 | Slice-input mode carries rows only in the input. In remote mode, workers read rows on site and no rows cross DCP. Results, saved batches, logs, and exports contain neither rows nor bootstrap indexes. |
 
-- [ ] TODO
+## Model quality and payload checks
 
-## Integration tests
+| ID | Test | Requirements | Pass condition |
+|---|---|---|---|
+| RF-T9 | Compare combined, pooled, and site-only forests on one holdout. Include unequal site sizes and skewed labels. Use comparable total tree budgets for combined and pooled models. | R1 | Report ROC AUC from vote fractions and accuracy from class predictions. Record split, seed, and model size. Meet the agreed quality threshold. |
+| RF-T10 | Measure runtime, result bytes per site, and model size at the proposed limits. | R2, R3, R5 | Runs fit the agreed budgets. Settings outside those limits fail before dispatch. |
 
-_Do worker and coordinator logic produce a complete forest without live DCP?_
+Use synthetic fixtures for repeatable training and recovery tests. The showcase BRFSS split is a candidate for RF-T9. [Showcase plan](https://docs.google.com/document/d/181NJW-Uq353eHQrRfpFzJeYJSchxmJzSlqJQ2lfOs1c/edit)
 
-- [ ] TODO
-
-## DCP end-to-end tests
-
-_Does training succeed on real DCP using remote data and discrete jobs?_
-
-- [ ] TODO
-
-## Invalid-input tests
-
-_What happens with invalid hyperparameters, mismatched schemas across sites, unsupported
-feature types, or a site with too few rows?_
-
-- [ ] TODO
-
-## Partial-participation tests
-
-_Is a valid forest produced when some sites do not participate (R8)? How does quality
-change?_
-
-- [ ] TODO
-
-## Failed-job recovery tests
-
-_After a failure, are completed slice results (trees or statistics) reused without
-retraining (R9)?_
-
-- [ ] TODO
-
-## Model-quality checks
-
-_How does the federated forest compare to a centralized baseline on pooled data? Which
-metric, threshold, and dataset? (TODO: see open questions.)_
-
-- [ ] TODO
-- [ ] TODO: quality with heterogeneous sites (unequal sizes, skewed labels)
-
-## Data-locality checks
-
-_Do slice results contain only the expected trees or statistics and no raw rows (R6)? Do
-shared values match what the privacy analysis says is shared?_
-
-- [ ] TODO
-
-## Serialization tests
-
-_Does a serialized forest load and produce identical predictions? Does loading work with
-only the minimal inference dependencies (R5)?_
-
-- [ ] TODO
-
-## Pass/fail criteria
-
-_What must pass before this track is considered done?_
-
-- TODO
+RF-T1 through RF-T4 are the local gate. Release sign-off requires agreed quality and runtime limits and passes for the selected DCP mode. Claim full R6 and R7 coverage only after verifying remote execution.
