@@ -28,14 +28,14 @@ The response contains run and site IDs, a schema identifier or feature order, an
 
 ### Candidate hyperparameters
 
-| Setting | Draft validation |
-|---|---|
-| Trees per site | Positive integer, capped by payload budget |
-| Maximum depth | Nonnegative integer, capped by runtime and payload budgets |
-| Minimum leaf size | Positive integer |
-| Features per split | Integer from 1 through the feature count |
-| Seed | Integer in the supported range |
-| Minimum successful sites | Integer from 2 through the planned site count |
+| Setting | Recommended Default | Valid Range | Where Validated |
+|---|---|---|---|
+| Trees per site (`n_trees`) | 20 | 1 to 100 | Coordinator |
+| Maximum depth (`max_depth`) | 8 | 1 to 15 | Coordinator |
+| Minimum leaf size (`min_samples_leaf`) | 5 | >= 2 | Worker |
+| Features per split (`max_features`) | "sqrt" | 1 to feature count | Worker |
+| Random seed (`seed`) | 42 | Any integer | Coordinator |
+| Minimum successful sites | 2 | 2 to planned sites | Coordinator |
 
 Check settings before dispatch. Defaults, upper bounds, and API names are open.
 
@@ -50,6 +50,25 @@ At depth `D` with the root at zero, a batch of `T` trees has at most `T × (2^(D
 Export versioned JSON with ordered feature names, tree roots, and training metadata. A split stores a feature index, finite threshold, and two children. A leaf stores its majority class.
 
 Go left at or below the threshold and right otherwise. Predict the majority vote. Use class `0` for voting ties and leaf ties during training. The fraction of class `1` votes is an uncalibrated score. Reject unknown versions, malformed trees, and rows with the wrong length or non-finite values. Prediction needs only JSON and numeric comparisons.
+
+### Tree JSON Schema
+```json
+{
+  "version": "1.0",
+  "n_features": 12,
+  "feature_names": ["age", "bmi", "smoker"],
+  "trees": [
+    {
+      "site_id": "site_01",
+      "tree_index": 0,
+      "nodes": [
+        {"node_id": 0, "feature": 1, "threshold": 25.0, "left": 1, "right": 2},
+        {"node_id": 1, "leaf": true, "prediction": 0},
+        {"node_id": 2, "leaf": true, "prediction": 1}
+      ]
+    }
+  ]
+}
 
 ## Failure handling
 
