@@ -37,7 +37,7 @@ The response contains run and site IDs, a schema identifier or feature order, an
 | Random seed (`seed`) | 42 | Any integer | Coordinator |
 | Minimum successful sites | 2 | 2 to planned sites | Coordinator |
 
-Check settings before dispatch. Defaults, upper bounds, and API names are open.
+Check settings before dispatch. Defaults are selected to align with scikit-learn conventions and payload constraints.
 
 ### Privacy and result size
 
@@ -52,10 +52,11 @@ Export versioned JSON with ordered feature names, tree roots, and training metad
 Go left at or below the threshold and right otherwise. Predict the majority vote. Use class `0` for voting ties and leaf ties during training. The fraction of class `1` votes is an uncalibrated score. Reject unknown versions, malformed trees, and rows with the wrong length or non-finite values. Prediction needs only JSON and numeric comparisons.
 
 ### Tree JSON Schema
+
 ```json
 {
   "version": "1.0",
-  "n_features": 12,
+  "n_features": 3,
   "feature_names": ["age", "bmi", "smoker"],
   "trees": [
     {
@@ -69,6 +70,7 @@ Go left at or below the threshold and right otherwise. Predict the majority vote
     }
   ]
 }
+```
 
 ## Failure handling
 
