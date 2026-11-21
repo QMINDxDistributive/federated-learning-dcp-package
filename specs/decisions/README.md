@@ -4,7 +4,7 @@
 |---|---|
 | Owner | Everyone |
 | Status | Skeleton |
-| Last updated | TODO |
+| Last updated | 2026-11-20 |
 
 Decision records capture significant choices, why they were made, and what they affect.
 Specs should link to the decision behind any non-obvious choice instead of restating the
@@ -37,3 +37,4 @@ Status values: `Proposed`, `Accepted`, `Rejected`, `Superseded by NNNN`.
 
 | # | Title | Status | Date | Owners |
 |---|---|---|---|---|
+| 0005 | [Train random forest trees at each site](0005-rf-site-trained-trees.md) | Proposed | 2026-11-20 | Nate, Mohsan, Ivan |
