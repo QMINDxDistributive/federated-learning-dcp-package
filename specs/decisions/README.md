@@ -4,7 +4,7 @@
 |---|---|
 | Owner | Everyone |
 | Status | Skeleton |
-| Last updated | 2026-11-14 |
+| Last updated | 2026-11-23 |
 
 Decision records capture significant choices, why they were made, and what they affect.
 Specs should link to the decision behind any non-obvious choice instead of restating the
@@ -41,4 +41,5 @@ Status values: `Proposed`, `Accepted`, `Rejected`, `Superseded by NNNN`.
 | [0002](0002-newton-default-method.md) | Newton-style is the default logistic regression method | Proposed | 2026-11-14 | Theo |
 | [0003](0003-lr-scope-site-rules-class-weights.md) | Logistic regression v0.1 scope, site rules and class weights | Proposed | 2026-11-14 | Theo |
 | [0004](0004-remote-data-on-site-laptops.md) | Keep each site's rows on its own machine with DCP remote data and per-site compute groups | Proposed | 2026-11-16 | Theo |
+| [0005](0005-rf-site-trained-trees.md) | Train random forest trees at each site | Proposed | 2026-11-20 | Nate, Mohsan, Ivan |
 | [0006](0006-dcp-client-dependency.md) | Pin dcp-client 5.9.0 as the only runtime dependency | Proposed | 2026-11-23 | Theo |

@@ -70,9 +70,9 @@ Status values: `Skeleton` → `Draft` → `In review` → `Approved`. See `CONTR
 | `specs/logistic-regression/summary.md` | Theo, TODO: second team member | Draft |
 | `specs/logistic-regression/implementation-plan.md` | Theo, TODO: second team member | Draft |
 | `specs/logistic-regression/test-plan.md` | Theo, TODO: second team member | Draft |
-| `specs/random-forest/summary.md` | Nate, Mohsan, Ivan | Skeleton |
-| `specs/random-forest/implementation-plan.md` | Nate, Mohsan, Ivan | Skeleton |
-| `specs/random-forest/test-plan.md` | Nate, Mohsan, Ivan | Skeleton |
+| `specs/random-forest/summary.md` | Nate, Mohsan, Ivan | Draft |
+| `specs/random-forest/implementation-plan.md` | Nate, Mohsan, Ivan | Draft |
+| `specs/random-forest/test-plan.md` | Nate, Mohsan, Ivan | Draft |
 
 ## Team ownership
 

@@ -4,7 +4,7 @@
 |---|---|
 | Owner | Everyone |
 | Status | Skeleton |
-| Last updated | 2026-11-14 |
+| Last updated | 2026-11-23 |
 
 Add anything unknown here instead of guessing. When a question is resolved, set its
 status to `Resolved` and link the decision record in `specs/decisions/`.
@@ -36,3 +36,8 @@ Questions that need an answer from Distributive are collected in
 | OQ-LR5 | Is sharing a site's Hessian (Newton-style) acceptable for v0, given that it reveals more than coefficients? | Logistic regression / privacy | Research summary | Theo | Resolved | Yes for v0.1 public data; revisit before real patient data ([0003](../decisions/0003-lr-scope-site-rules-class-weights.md)) |
 | OQ-LR6 | When a site is still missing after retries, should a Newton-style round proceed without it (result no longer equals pooled training) or wait/abort? | Logistic regression | LR draft | Theo | Resolved | Retry, then proceed with responders and mark the round partial ([0003](../decisions/0003-lr-scope-site-rules-class-weights.md)) |
 | OQ-LR7 | How is real hospital data harmonized before training: a shared data template, units, category coding, missing values? | Logistic regression / shared | Theo, 2026-11-14 | Theo | Open | |
+| OQ-RF1 | Should the first forest use site-trained trees and equal votes per tree with a fixed budget per site? When should site sample size affect a site's voting weight? | Random forest | RF draft | RF track | In discussion | [Proposed decision 0005](../decisions/0005-rf-site-trained-trees.md) |
+| OQ-RF2 | Will the first RF DCP run send public or synthetic rows in slices, or use remote data? Which release includes the live DCP loop? | Random forest | RF draft | RF track and shared DCP owners | Open | |
+| OQ-RF3 | What minimum site count or coverage makes a partial forest usable, and how should RF inherit the shared retry and result storage policies? See OQ10 and OQ11. | Random forest | RF draft | RF track | Open | |
+| OQ-RF4 | Which held-out dataset, baseline, and quality threshold are required for sign-off? See OQ5. | Random forest | RF draft | RF track | Open | |
+| OQ-RF5 | What tree settings and defaults fit the agreed runtime, result payload, and model size budgets? See OQ7. | Random forest | RF draft | RF track | Open | |
