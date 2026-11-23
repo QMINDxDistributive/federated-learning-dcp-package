@@ -21,6 +21,6 @@
     "demo:check-groups": "node demo/check-groups.js"
   },
   "dependencies": {
-    "dcp-client": "^5.9.0"
+    "dcp-client": "5.9.0"
   }
 }
