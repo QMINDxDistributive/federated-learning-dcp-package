@@ -6,7 +6,7 @@
 | Status | Proposed |
 | Date | 2026-11-13 |
 | Owners | Theo, Nate |
-| Affects | [shared summary](../shared/summary.md) R6, R7; [shared implementation plan](../shared/implementation-plan.md#dcp-remote-data); [logistic regression plan](../logistic-regression/implementation-plan.md#data-source-boundary); random forest plan; OQ12 |
+| Affects | [shared summary](../shared/summary.md) R6, R7; [shared implementation plan](../shared/implementation-plan.md#data-flow) (data source boundary and modes); [logistic regression plan](../logistic-regression/implementation-plan.md#data-flow); [random forest plan](../random-forest/implementation-plan.md#jobs-and-slice-contents); OQ12 |
 
 ## Context
 

@@ -4,13 +4,33 @@
 |---|---|
 | Owner | Theo, TODO: second team member (OQ1) |
 | Status | Draft |
-| Last updated | 2026-11-14 |
+| Last updated | 2026-11-23 |
 | Related | [summary.md](summary.md), [implementation-plan.md](implementation-plan.md), [shared test plan](../shared/test-plan.md) |
 
+> This plan lists only tests of logistic regression's maths, payloads, and settings. Tests of
+> behavior shared with the other track (DCP, validation, failure handling, saved results, data
+> locality, the model envelope) are in the [shared test plan](../shared/test-plan.md) and are
+> run here with the inputs in [Running the shared tests](#running-the-shared-tests).
+>
 > Each test references the requirement IDs it covers and the method it applies to.
 > Thresholds marked **Proposed** need agreement.
 
 Test case format: `ID | method | description | requirement IDs | expected result | status`
+
+## Running the shared tests
+
+Every [shared test](../shared/test-plan.md) runs for both methods. What logistic regression
+supplies:
+
+| Item | Value |
+|---|---|
+| Fixtures | Synthetic 3-site and 4-site splits with a fixed seed. BRFSS sample states for DCP runs. Fed-Heart-Disease for quality checks |
+| Result schema (S-L1, S-L4) | The keys and lengths in the [data flow table](implementation-plan.md#data-flow). Lengths depend only on d |
+| S-E1 tolerance | Newton: 1e-6 against the local runner. FedAvg: set per dataset after the first runs |
+| S-P1 | Default `minParticipants` is K, so the test lowers it |
+| S-C2 | A different `method` or any changed hyperparameter counts as changed settings |
+| S-V2 | Uses `learningRate` with `method: "newton"` and `damping` with `method: "fedavg"` |
+| S-V8 and round 0 | The error comes from round 0, before round 1, and names the site |
 
 ## Test datasets
 
@@ -52,8 +72,9 @@ dataset after the first runs.
 | LR-U5 | Both | `siteStats` returns correct n, Σx, Σx², class counts on a hand-made 4-row table | R6 | Exact |
 | LR-U6 | Both | Coordinator μ, σ from per-site stats equal μ, σ of the pooled table | R1 | Within 1e-12 |
 | LR-U7 | Both | Unstandardize: predictions with exported raw-scale coefficients equal predictions with standardized coefficients on standardized inputs | R5 | Within 1e-12 |
-| LR-U8 | Both | Exported JSON round-trips through `save` / `load` and predicts identically | R5 | Identical output |
-| LR-U9 | Both | `predictProba` snippet from the spec, copied into a file with no imports, matches the package | R5, LR-R2 | Within 1e-12 |
+
+Model save and load, and the dependency-free `predictProba` snippet, are covered by
+[S-U1 to S-U4](../shared/test-plan.md#unit-tests).
 
 ## Integration tests
 
@@ -63,20 +84,22 @@ without DCP (see [implementation plan](implementation-plan.md#modules-and-respon
 | ID | Method | Description | Req | Expected |
 |---|---|---|---|---|
 | LR-I1 | Both | Full run on a synthetic 3-site split converges | R1, R4 | `converged: true`, model returned |
-| LR-I2 | Both | Same seed and inputs give the same model on the same machine | R1 | Identical |
 | LR-I3 | Both | Resume from a checkpoint at round 3 gives the same final model as an uninterrupted run | R9 | Within 1e-12 |
-| LR-I4 | Both | Round 0 rejects sites whose feature names or order differ | R6 | Error before round 1, names the site |
+
+Determinism is [S-I2](../shared/test-plan.md#integration-tests). Differing feature names or order is
+[S-V8](../shared/test-plan.md#invalid-input-tests).
 
 ## DCP end-to-end tests
 
-These need the DCP loop (task 8 in the [work breakdown](implementation-plan.md#work-breakdown)), which may arrive in v0.2 (OQ13). Until then, the integration tests with the local runner are the main check.
+These need the shared DCP loop (S3 in the [shared work breakdown](../shared/implementation-plan.md#work-breakdown)), which may arrive in v0.2 (OQ13). Until then, the integration tests with the local runner are the main check.
 
 | ID | Method | Description | Req | Expected |
 |---|---|---|---|---|
-| LR-E1 | Newton | Fed-Heart-Disease, 4 workers each acting as one site, on real DCP | R3, R7 | Matches local runner result within tolerance |
-| LR-E2 | FedAvg | Same as LR-E1 | R3, R7 | Matches local runner result within tolerance |
-| LR-E3 | Both | Record time per round (deploy to last result) for 1, 4 and 8 sites | R3 | Numbers recorded. Feeds `roundTimeoutMs` and the [0002](../decisions/0002-newton-default-method.md) review |
-| LR-E4 | Both | Each site's job runs only on that site's compute group | R7, R10 | Worker logs show correct placement. Needed once remote data is added ([0001](../decisions/0001-v0-1-send-data-with-slices.md)); informational in v0.1. Depends on OQ9 |
+| LR-E3 | Both | Use the [S-E2](../shared/test-plan.md#dcp-end-to-end-tests) timings to compare Newton and FedAvg end to end | R3 | Numbers recorded for both methods. Feeds the [0002](../decisions/0002-newton-default-method.md) review |
+
+Fed-Heart-Disease on 4 workers, one per site, is the LR run of
+[S-E1](../shared/test-plan.md#dcp-end-to-end-tests) for each method. Placement on the right compute group
+is [S-E3](../shared/test-plan.md#dcp-end-to-end-tests).
 
 LR-E3 is the most important early measurement: it checks the Newton-style default
 ([0002](../decisions/0002-newton-default-method.md)). If FedAvg turns out faster end to end, revisit that decision.
@@ -87,18 +110,16 @@ All must fail **before any training round is deployed**, with an error naming th
 
 | ID | Method | Description | Req |
 |---|---|---|---|
-| LR-V1 | Both | Unknown hyperparameter key | R2, LR-R3 |
 | LR-V2 | Newton | `learningRate` passed with `method: "newton"` | LR-R3 |
 | LR-V3 | FedAvg | `damping` passed with `method: "fedavg"` | LR-R3 |
 | LR-V4 | Newton | `l2: 0` with Newton | R2 |
 | LR-V5 | Both | Out-of-range values: negative `l2`, `maxRounds: 0`, `minParticipants` > K | R2 |
-| LR-V6 | Both | Non-numeric feature value at one site | R6 |
-| LR-V7 | Both | Missing value at one site | R6 |
-| LR-V8 | Both | Label not in {0, 1} | R6 |
-| LR-V9 | Both | A site with only one class | R6 |
 | LR-V10 | Both | Constant feature across all sites (σ = 0) | R6 |
 | LR-V11 | Both | Site below `minSiteRows` with `siteSizeCheck: "error"` (the default) | R6 |
 | LR-V12 | Both | `classWeight` with an unknown string, a missing class, or a weight ≤ 0 | R2, LR-R3 |
+
+Unknown keys, non-numeric values, missing values, bad labels, and single-class sites are
+[S-V1, S-V4 to S-V7](../shared/test-plan.md#invalid-input-tests).
 
 ## Partial-participation tests
 
@@ -110,16 +131,18 @@ Use a local runner that can drop a chosen site in a chosen round.
 | LR-P2 | FedAvg | One site missing for every round | R8 | Completes. Result equals training on 3 sites |
 | LR-P3 | Newton | One site missing in round 2, returns after a retry | R8 | Result identical to a run with no dropout |
 | LR-P4 | Newton | One site missing in round 2 after all retries, `minParticipants` = 3 | R8 | Completes. Round 2 marked `partial`. Final gap to pooled reported |
-| LR-P5 | Both | Responders fall below `minParticipants` | R8, R9 | Stops with an error naming missing sites. Checkpoint saved. No model |
-| LR-P6 | Both | Site returns NaN, wrong length, or a changed n_k | R8 | Treated as a failed site, logged |
+| LR-P6 | Both | Site returns a result of the wrong length for its method, or a changed n_k | R8 | Treated as a failed site, logged. (NaN is [S-P2](../shared/test-plan.md#partial-participation-tests)) |
+
+Falling below `minParticipants` is [S-P1](../shared/test-plan.md#partial-participation-tests).
 
 ## Failed-job recovery tests
 
 | ID | Method | Description | Req | Expected |
 |---|---|---|---|---|
-| LR-C1 | Both | Kill the run after 2 of 4 sites returned in round 5, then resume | R9 | Only the 2 missing sites are redeployed for round 5 |
-| LR-C2 | Both | Resume with different hyperparameters than the checkpoint | R9 | Rejected with a clear error |
 | LR-C3 | Both | Resume from a checkpoint written after the final round | R9 | Returns the model with no new jobs |
+
+Resuming mid-round and resuming with changed settings are
+[S-C1 and S-C2](../shared/test-plan.md#failed-job-recovery-tests).
 
 ## Model-quality checks
 
@@ -146,10 +169,11 @@ clinical research: regulators expect this).
 
 | ID | Method | Description | Req | Expected |
 |---|---|---|---|---|
-| LR-L1 | Both | Every site result validates against a strict schema: only the keys and lengths listed in the [data flow table](implementation-plan.md#data-flow) | R6 | No extra keys. Lengths depend only on d |
 | LR-L2 | Both | Result size is independent of n_k (run with n_k = 50 and 5000) | R6 | Same byte size |
 | LR-L3 | Both | Checkpoints contain only aggregates | R6, R9 | Schema check passes |
-| LR-L4 | Both | With inline data (v0.1, [0001](../decisions/0001-v0-1-send-data-with-slices.md)), confirm the only row-level data is the slice input, and none appears in results, checkpoints, logs or the exported model | R6 | Grep for known row values finds none outside input |
+
+Result schema, and the inline-mode search for row values, are
+[S-L1 and S-L2](../shared/test-plan.md#data-locality-checks).
 
 ## Newton-style training tests
 
@@ -200,9 +224,10 @@ clinical research: regulators expect this).
 
 **Proposed.** The track is done when:
 
+- **Shared tests:** every [shared test](../shared/test-plan.md#passfail-criteria) passes for both methods.
 - **Both methods:** all unit, integration, invalid-input, partial-participation, recovery,
-  data-locality, class weight, site size and site shift tests pass; at least one DCP end-to-end run per method passes (LR-E1, LR-E2);
-  LR-E3 timings are recorded.
+  data-locality, class weight, site size and site shift tests in this plan pass; LR-E3 timings
+  are recorded.
 - **Newton-style:** LR-Q1 and LR-Q2 pass (equal to pooled within 1e-6).
 - **FedAvg:** LR-Q3 passes, and the LR-Q4 and LR-Q6 results are written up to confirm or
   revisit the Newton-style default ([0002](../decisions/0002-newton-default-method.md)).

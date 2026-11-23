@@ -4,8 +4,8 @@ const { workFunction } = require('../lr/workFunction');
 const { runSingleSliceJob } = require('./dcpJob');
 
 /**
- * DCP runner: one DCP job per site per round, all sites deployed together (LR spec,
- * "DCP job design").
+ * DCP runner: one DCP job per site per round, all sites deployed together (shared spec,
+ * "Discrete jobs").
  *
  * Where a site's rows come from:
  *   - site.dataUrl (decision 0004): the slice is a DCP remote data URL on the site's own machine,

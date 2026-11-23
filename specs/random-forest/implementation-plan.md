@@ -4,8 +4,14 @@
 |---|---|
 | Owner | Nate, Mohsan, Ivan |
 | Status | Draft |
-| Last updated | 2026-11-20 |
+| Last updated | 2026-11-23 |
 | Related | [Summary](summary.md), [test plan](test-plan.md), [shared plan](../shared/implementation-plan.md), [proposed decision 0005](../decisions/0005-rf-site-trained-trees.md) |
+
+> This plan covers only what is specific to random forest: the training maths, the
+> hyperparameters, what a site returns, how batches combine, and the forest payload. DCP job design,
+> compute groups, the worker script, the data source boundary, the site data format, failure
+> handling policy, saved results, the model envelope, and dependencies are in the
+> [shared implementation plan](../shared/implementation-plan.md).
 
 ## Architecture
 
@@ -21,7 +27,7 @@ src/
   rf/
     hyperparameters.js   validates all settings before dispatch
     train.js             public entry point: validates settings, picks a runner, calls the coordinator
-    coordinator.js       one slice per site, saves and reuses batches, checks minimum sites, assembles the forest
+    coordinator.js       one job per site, saves and reuses batches, checks minParticipants, assembles the forest
     workFunction.js      site training inside one slice (self-contained, see below)
     model.js             JSON export, load, validation, and prediction, with no dependencies
 test/
@@ -29,22 +35,24 @@ test/
   fixtures/              seeded synthetic datasets
 ```
 
-`workFunction.js` is sent to DCP workers as source text, like `src/lr/workFunction.js`. It must not use `require()` or call helpers defined outside the function. The data checks, seeded random number generator, bootstrap sampling, and tree growth all live inside it. The local runner and tests call the same function, so tests cover exactly what runs on DCP.
+`workFunction.js` follows the [shared work function constraints](../shared/implementation-plan.md#work-function-constraints). In this track that means the data checks, seeded random number generator, bootstrap sampling, and tree growth all live inside it.
 
-## Data flow and DCP job design
+## Jobs and slice contents
 
-Send one job with one slice per site. Each slice gets the run ID, site ID, feature order, seed, and tree settings. Jobs can run in parallel. A loader supplies the rows.
+Jobs follow the [shared job design](../shared/implementation-plan.md#discrete-jobs): **one job per site, with one slice each, all deployed together**. Training is one round, so a run is K jobs plus retries. Where a site's rows come from (inline or remote) is the shared [data source boundary](../shared/implementation-plan.md#data-flow).
 
-- **Slice input.** Under the proposed v0.1 design, public or synthetic rows travel in the slice. Full R6 and R7 are deferred in this mode. [Proposed decision 0001](https://github.com/QMINDxDistributive/federated-learning-dcp-package/blob/bb934da0d2c547e9665f2a83fbde580bdc1888ed/specs/decisions/0001-v0-1-send-data-with-slices.md)
-- **Remote data.** Route the job to the site's worker and verify that it loads rows on the site machine. Worker setup and routing follow the shared DCP decisions.
+| Item | Value |
+|---|---|
+| Slice arguments | Run ID, site ID, feature order, seed, and tree settings |
+| Slice result | Run ID, site ID, a schema identifier or feature order, and the tree batch |
 
-The response contains run and site IDs, a schema identifier or feature order, and the tree batch. Keep rows and bootstrap indexes out of responses, saved batches, logs, and exports.
+Keep rows and bootstrap indexes out of responses, saved batches, logs, and exports.
 
 ## Site training and aggregation
 
-1. **Check the data.** Check feature names and order, finite numeric values, and binary labels. A site needs both classes and at least as many rows as the minimum leaf size. Sites agree on units and category encoding before training.
+1. **Check the data.** Apply the [shared site data rules](../shared/implementation-plan.md#site-data). Random forest adds one requirement: the site needs at least `minSamplesLeaf` rows.
 2. **Grow the trees.** For each tree $t = 0, \dots, T-1$, seed a random stream from the run seed, site ID, and tree index, draw a bootstrap sample, and grow the tree by recursive Gini splits until a stopping rule fires. The exact procedure is in [Training math](#training-math).
-3. **Combine.** Return the $T$ trees. The coordinator accepts one valid batch per planned site, assembles batches in stable site order, and combines them by voting. It records contributing and missing sites. The equal-vote baseline is compared with row-weighted voting before the API is settled. See [Voting](#7-voting-and-prediction).
+3. **Combine.** Return the $T$ trees. The coordinator accepts one valid batch per planned site, assembles batches in stable site order, and combines them by voting. It records participation in `training.participation`. The equal-vote baseline is compared with row-weighted voting before the API is settled. See [Voting](#7-voting-and-prediction).
 
 ## Training math
 
@@ -56,10 +64,10 @@ The response contains run and site IDs, a schema identifier or feature order, an
 | $n_s$ | Number of rows at site $s$. Written $n$ when the site is clear. |
 | $p$ | Number of features, the length of the shared feature order. |
 | $x_i \in \mathbb{R}^p$, $y_i \in \{0, 1\}$ | Feature vector and label of row $i$. $x_{ij}$ is feature $j$ of row $i$. |
-| $T$ | Trees per site (`n_trees`). |
-| $D$ | Maximum depth (`max_depth`). The root has depth 0. |
-| $m$ | Minimum leaf size (`min_samples_leaf`), counted in bootstrap draws. |
-| $k$ | Features tried per split (from `max_features`). |
+| $T$ | Trees per site (`nTrees`). |
+| $D$ | Maximum depth (`maxDepth`). The root has depth 0. |
+| $m$ | Minimum leaf size (`minSamplesLeaf`), counted in bootstrap draws. |
+| $k$ | Features tried per split (from `maxFeatures`). |
 | $S$ | The bootstrap draws that reach a node, counted with repetition. $N = \lvert S \rvert$. |
 | $N_1$, $N_0$ | Draws in $S$ with label 1 and label 0. $N = N_0 + N_1$. |
 
@@ -219,58 +227,66 @@ The class rule and tie rule are unchanged. This needs each site to report $n_s$ 
 
 ## Candidate hyperparameters
 
-| Setting | Recommended Default | Valid Range | Where Validated |
-|---|---|---|---|
-| Trees per site (`n_trees`) | 20 | 1 to 100 | Coordinator |
-| Maximum depth (`max_depth`) | 8 | 1 to 15 | Coordinator |
-| Minimum leaf size (`min_samples_leaf`) | 5 | >= 2 | Coordinator |
-| Features per split (`max_features`) | "sqrt" | 1 to feature count | Coordinator |
-| Random seed (`seed`) | 42 | Any safe integer, reduced mod $2^{32}$ | Coordinator |
-| Minimum successful sites | 2 | 2 to planned sites | Coordinator |
+| Setting | Recommended Default | Valid Range |
+|---|---|---|
+| Trees per site (`nTrees`) | 20 | 1 to 100 |
+| Maximum depth (`maxDepth`) | 8 | 1 to 15 |
+| Minimum leaf size (`minSamplesLeaf`) | 5 | >= 2 |
+| Features per split (`maxFeatures`) | "sqrt" | `"sqrt"`, or an integer from 1 to the feature count |
+| Random seed (`seed`) | 42 | Any safe integer, reduced mod $2^{32}$ |
 
-The coordinator checks every setting before dispatch, using the shared feature order to bound `max_features`. Workers check only their own data, such as the row count against `min_samples_leaf` and the presence of both classes.
+Every track also accepts the [shared settings](../shared/implementation-plan.md#hyperparameter-validation). For random forest, `minParticipants` defaults to 2 (**Proposed**, OQ-RF3) and accepts 2 to K.
 
-`max_features="sqrt"` matches scikit-learn. The other defaults are tighter than scikit-learn's (`n_estimators=100`, `max_depth=None`, `min_samples_leaf=1`) to keep result payloads small and to avoid leaves that describe a single record. Confirm them against the payload and runtime measurements in RF-T10.
+The [shared validation rules](../shared/implementation-plan.md#hyperparameter-validation) apply: the coordinator checks every setting before dispatch. `maxFeatures` is bounded by the feature count from the shared feature order. Workers check only their own data, such as the row count against `minSamplesLeaf`.
+
+Names are camelCase to match the rest of the package. They correspond to scikit-learn's `n_estimators`, `max_depth`, `min_samples_leaf`, and `max_features`. `maxFeatures: "sqrt"` matches scikit-learn's default. The other defaults are tighter than scikit-learn's (`n_estimators=100`, `max_depth=None`, `min_samples_leaf=1`) to keep result payloads small and to avoid leaves that describe a single record. Confirm them against the payload and runtime measurements in RF-T10.
 
 ## Privacy and result size
 
-Thresholds can expose feature ranges or rare values. A leaf label can reveal information about a small group. The minimum leaf size counts bootstrap draws, which can repeat the same record. Treat trees as potentially sensitive and use public or synthetic data.
+Thresholds can expose feature ranges or rare values. A leaf label can reveal information about a small group. The minimum leaf size counts bootstrap draws, which can repeat the same record. Treat trees as potentially sensitive. The data limit for v0.1 is in the shared [privacy](../shared/implementation-plan.md#privacy) section.
 
 Batch size is bounded in [Tree size and cost](#6-tree-size-and-cost). Measure runtime and serialized bytes before setting limits.
 
 ## Serialization for inference
 
-Export versioned JSON with ordered feature names, tree roots, and training metadata. A split stores a feature index, finite threshold, and two children. A leaf stores its majority class.
+Export the forest in the [shared envelope](../shared/implementation-plan.md#model-output-format) (`formatVersion`, `modelType: "random-forest"`, `featureNames`, `training`) with one extra key, `trees`. A split stores a feature index, finite threshold, and two children. A leaf stores its majority class.
 
-Go left at or below the threshold and right otherwise. Predict the majority vote. Use class `0` for voting ties and leaf ties during training. This tie rule slightly favors class `0`, so RF-T9 should report class balance alongside accuracy. The fraction of class `1` votes is an uncalibrated score. Reject unknown versions, malformed trees, and rows with the wrong length or non-finite values. Prediction needs only JSON and numeric comparisons.
+Go left at or below the threshold and right otherwise. Predict the majority vote. Use class `0` for voting ties and leaf ties during training. This tie rule slightly favors class `0`, so RF-T9 should report class balance alongside accuracy. The fraction of class `1` votes is an uncalibrated score. Prediction needs only JSON and numeric comparisons.
+
+The [shared load and row checks](../shared/implementation-plan.md#model-output-format) apply (unknown version, wrong model type, wrong row length, non-finite values). Random forest adds: reject a malformed tree, meaning a child index that does not exist, a cycle, a feature index outside `featureNames`, a non-finite threshold, or a leaf prediction other than `0` or `1`.
 
 ### Tree JSON Schema
 
 ```json
 {
-  "version": "1.0",
-  "feature_names": ["age", "bmi", "smoker"],
+  "formatVersion": 1,
+  "modelType": "random-forest",
+  "featureNames": ["age", "bmi", "smoker"],
   "training": {
-    "run_id": "run_2026_11_20_01",
-    "seed": 42,
-    "settings": {
-      "n_trees": 20,
-      "max_depth": 8,
-      "min_samples_leaf": 5,
-      "max_features": "sqrt"
+    "runId": "run-2026-11-23-01",
+    "hyperparameters": {
+      "nTrees": 20,
+      "maxDepth": 8,
+      "minSamplesLeaf": 5,
+      "maxFeatures": "sqrt",
+      "seed": 42,
+      "minParticipants": 2
     },
-    "voting": "equal_per_tree",
-    "contributing_sites": ["site_01", "site_02"],
-    "missing_sites": ["site_03"]
+    "voting": "equalPerTree",
+    "participation": [
+      { "round": 1, "sites": ["site_01", "site_02"], "missing": ["site_03"] }
+    ],
+    "warnings": [],
+    "trainedAt": "2026-11-23T10:00:00Z"
   },
   "trees": [
     {
-      "site_id": "site_01",
-      "tree_index": 0,
+      "siteId": "site_01",
+      "treeIndex": 0,
       "nodes": [
-        {"node_id": 0, "feature": 1, "threshold": 25.0, "left": 1, "right": 2},
-        {"node_id": 1, "leaf": true, "prediction": 0},
-        {"node_id": 2, "leaf": true, "prediction": 1}
+        {"nodeId": 0, "feature": 1, "threshold": 25.0, "left": 1, "right": 2},
+        {"nodeId": 1, "leaf": true, "prediction": 0},
+        {"nodeId": 2, "leaf": true, "prediction": 1}
       ]
     }
   ]
@@ -279,16 +295,19 @@ Go left at or below the threshold and right otherwise. Predict the majority vote
 
 ## Failure handling
 
-Retry failed or timed-out jobs under the shared policy. Save one validated batch per run and site. Reuse it only if the schema, settings, seed, and input snapshot match. Rerun the site if the snapshot cannot be verified. Ignore duplicate results.
+The [shared failure handling](../shared/implementation-plan.md#failure-handling) sets the policy: retries redeploy only the missing sites, the first valid result wins, and a run below `minParticipants` stops with an error and no model. This section adds what is specific to random forest. Training is one round, so there is no coordinator checkpoint. The saved unit is one site's tree batch.
 
-After retries, return a forest only if enough sites succeeded. Report missing sites and the tree count. Below the minimum, fail and retain completed batches for retry. Timeout, storage, and retention are still open. [Shared open questions](../shared/open-questions.md)
+**Extra batch checks.** Besides the shared checks, a batch fails if it does not hold exactly `nTrees` trees, or if any tree is malformed (see [Serialization](#serialization-for-inference)), is deeper than `maxDepth`, or uses a feature index outside the shared feature order.
+
+**What "continue with the responders" means.** Once at least `minParticipants` sites returned valid batches, the forest holds the trees of the contributing sites. The model reports the missing sites in `training.participation`, and its tree count is the number of contributing sites times `nTrees`. Every tree has one vote, so a missing site removes its trees and its share of the vote.
+
+**Saved batches.** A saved batch is reused under the shared [fingerprint rule](../shared/implementation-plan.md#result-persistence): the schema, settings, seed, and input snapshot must match. Rows and bootstrap indexes never appear in saved batches.
 
 ## Dependencies
 
-RF adds no package dependencies. [Dependency policy](../shared/dependencies.md)
+Random forest adds no package dependencies beyond the [shared set](../shared/implementation-plan.md#dependencies).
 
 - **Inference (`model.js`):** none. Prediction needs only JSON and numeric comparisons (R5).
-- **Site training (`workFunction.js`):** none. Bootstrap sampling, Gini splits, and the seeded random number generator are hand-written, and the function cannot load packages on DCP workers anyway.
-- **Coordinator:** reuses the shared DCP runners, which load `dcp-client` lazily. Local runs and tests do not need it.
+- **Site training (`workFunction.js`):** none. Bootstrap sampling, Gini splits, and the seeded random number generator are hand-written, because the function cannot load packages on DCP workers.
 
-Any new training dependency needs a dependency table entry, approval, and a decision record.
+Any new training dependency needs a dependency table entry, approval, and a decision record ([policy](../shared/dependencies.md)).

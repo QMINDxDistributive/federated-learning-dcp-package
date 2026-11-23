@@ -1,7 +1,9 @@
 # Contributing
 
-> **This repository is currently specs only.** Contributions are markdown changes under
-> `specs/`, `README.md`, and this file. Do not add implementation code or dependencies.
+> **The specs are the source of truth.** The repository also holds a logistic regression
+> prototype (`src/`, `test/`, `tools/`, `demo/`). Random forest has specs only. TODO: confirm
+> the rule for adding implementation code or dependencies before the specs are approved.
+> Any dependency change needs a decision record ([dependencies.md](specs/shared/dependencies.md)).
 
 ## Branch and pull request flow
 
@@ -39,6 +41,10 @@ Mohsan, or Ivan must approve.
 
 ## Writing specs
 
+- **Put a rule in one place.** If it applies to both model tracks, it belongs in `specs/shared/`.
+  A track spec holds only what is specific to its model and links to the shared spec for the
+  rest. This covers DCP, jobs, the site data format, validation, failure handling, saved results,
+  the model envelope, dependencies, and tests of those.
 - Do not invent technical decisions, versions, APIs, datasets, or results.
 - If something is unknown, leave a `TODO:` marker or add it to
   `specs/shared/open-questions.md`.

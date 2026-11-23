@@ -88,7 +88,7 @@ Option 2 (Proposed) for the demo's DCP mode. The library keeps both paths: `site
   (0001 path) sends every job to one shared group (`queens`), which is fine while rows travel in
   the slices.
 - Once accepted, R6 and R7 hold for the demo's DCP mode, and the shared plan's "DCP remote
-  data", "Compute groups" and "Worker setup script" sections can link here.
+  data", "Compute groups" and "Worker setup script" sections are based on this record.
 
 ## End-to-end test (2026-11-17)
 

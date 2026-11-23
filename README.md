@@ -1,9 +1,12 @@
 # Federated Learning on DCP — QMIND x Distributive
 
 > [!IMPORTANT]
-> **This repository is currently specs only.** It contains markdown specifications and
-> no implementation code, dependencies, or build tooling. Do not add code until the
-> specs are approved (see [Spec status](#spec-status)).
+> **The specs are the source of truth, and they are still drafts.** The repository also holds a
+> **logistic regression prototype** (`src/`, `test/`, `tools/`, `demo/`, `fl-agent.js`) that tested
+> the specs on DCP. Random forest has specs only. Where the prototype does not match a spec yet,
+> the spec says so (see the [shared implementation plan](specs/shared/implementation-plan.md)).
+> TODO: confirm the team's rule for adding code before the specs are approved
+> (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ## About the project
 
@@ -16,7 +19,7 @@ The project has two model tracks:
 - **Logistic regression** — Newton-style training and FedAvg
 - **Random forest**
 
-The current phase produces markdown specs only.
+The current phase is the specs, plus the logistic regression prototype that checks them.
 
 GitHub org: QMind Distributed (TODO: confirm org name — see `specs/shared/open-questions.md`).
 
@@ -35,26 +38,36 @@ key is and where to put it: [demo/dcp-credentials.md](demo/dcp-credentials.md).
 ```
 README.md                         Project overview (this file)
 CONTRIBUTING.md                   Branch, pull request, review, and decision process
+package.json                      Pinned dependencies and npm scripts (prototype)
 specs/
-  shared/                         Specs that apply to both model tracks
-    summary.md                    Purpose, scope, requirements, traceability table
-    implementation-plan.md        Shared architecture, API, DCP job design
-    test-plan.md                  Shared test strategy
+  shared/                         Everything that applies to both model tracks
+    summary.md                    Purpose, users, scope, requirements, traceability, releases
+    implementation-plan.md        Architecture, API, site data, model envelope, DCP jobs,
+                                  compute groups, worker script, failure handling, saved results
+    test-plan.md                  Tests run for every track (DCP, validation, recovery, locality)
     dependencies.md               Dependency policy and approved dependency table
     open-questions.md             Unresolved questions for all tracks
     questions-for-alex.md         Questions to raise with Distributive (Alex)
-  logistic-regression/            Logistic regression track (Newton-style + FedAvg)
+  logistic-regression/            Only what is specific to logistic regression
     summary.md
     implementation-plan.md
     test-plan.md
-  random-forest/                  Random forest track
+  random-forest/                  Only what is specific to random forest
     summary.md
     implementation-plan.md
     test-plan.md
   decisions/                      Decision records
-    README.md                     How to record decisions
+    README.md                     How to record decisions, and the index
     template.md                   Decision record template
+src/                              Prototype: shared runners (runners/) and logistic regression (lr/)
+test/                             Prototype tests and fixtures
+tools/                            Data preparation and reference scripts (Python, not shipped)
+demo/                             Showcase demo: coordinator, dashboard, join page
+fl-agent.js                       Standalone site agent (decision 0004)
 ```
+
+**Where a spec rule goes.** If it applies to both tracks, it lives in `specs/shared/`. A track
+spec holds only what is specific to its model and links to the shared spec for the rest.
 
 ## Spec status
 
@@ -62,9 +75,9 @@ Status values: `Skeleton` → `Draft` → `In review` → `Approved`. See `CONTR
 
 | Spec | Owner(s) | Status |
 |---|---|---|
-| `specs/shared/summary.md` | Everyone | Skeleton |
-| `specs/shared/implementation-plan.md` | Everyone | Skeleton |
-| `specs/shared/test-plan.md` | Everyone | Skeleton |
+| `specs/shared/summary.md` | Everyone | Draft |
+| `specs/shared/implementation-plan.md` | Everyone | Draft |
+| `specs/shared/test-plan.md` | Everyone | Draft |
 | `specs/shared/dependencies.md` | Everyone | Skeleton |
 | `specs/shared/open-questions.md` | Everyone | Skeleton |
 | `specs/logistic-regression/summary.md` | Theo, TODO: second team member | Draft |

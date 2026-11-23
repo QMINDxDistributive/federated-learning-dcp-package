@@ -4,9 +4,15 @@
 |---|---|
 | Owner | Theo, TODO: second team member (OQ1) |
 | Status | Draft |
-| Last updated | 2026-11-14 |
+| Last updated | 2026-11-23 |
 | Related | [summary.md](summary.md), [test-plan.md](test-plan.md), [shared implementation plan](../shared/implementation-plan.md) |
 
+> This plan covers only what is specific to logistic regression: the maths, the hyperparameters,
+> what a site sends, how results combine, and the model payload. DCP job design, compute groups,
+> the worker script, the data source boundary, the site data format, failure handling policy,
+> saved results, the model envelope, and dependencies are in the
+> [shared implementation plan](../shared/implementation-plan.md).
+>
 > Values marked **Agreed** were accepted by the track owner on 2026-11-14 and become final
 > once this spec and decision records [0002](../decisions/0002-newton-default-method.md) and [0003](../decisions/0003-lr-scope-site-rules-class-weights.md) pass review. Values
 > still marked **Proposed** are suggestions in this draft, not agreed decisions. Anything
@@ -44,10 +50,13 @@ baseline for tests. c_i is the [class weight](#class-weights) of row i's label; 
 
 The track adds one model type to the shared package. It plugs into three shared pieces:
 
-1. the **job runner**, which deploys one round's site jobs, collects results, handles timeouts
-   and retries, and saves each site result as it arrives (shared spec);
-2. the **checkpoint store**, which records coordinator state after every round (shared spec);
-3. the **model output format** and `save()` / `load()` (shared spec; LR fields defined below).
+1. the **[runner](../shared/implementation-plan.md#public-api)**, which deploys one round to every
+   site and returns the results (timeouts, retries, and saving are in the
+   [shared failure handling](../shared/implementation-plan.md#failure-handling));
+2. the **[checkpoint store](../shared/implementation-plan.md#result-persistence)**, which records
+   coordinator state after every round (LR fields defined below);
+3. the **[model output envelope](../shared/implementation-plan.md#model-output-format)** and
+   `save()` / `load()` (LR payload defined below).
 
 Newton-style and FedAvg share everything except two functions: the site step (what a
 worker computes) and the coordinator update (how results become the next β). `method`
@@ -72,17 +81,20 @@ train(hyperparameters)
 
 ## Modules and responsibilities
 
+Files under `src/lr/`. The runners (`src/runners/`) are
+[shared](../shared/implementation-plan.md#modules-and-responsibilities).
+
 | Module | Responsibility | Used by (Newton / FedAvg / both) | Runs where | Owner |
 |---|---|---|---|---|
-| `lr/math` | Stable sigmoid and log loss, dot product, matrix-vector product, Cholesky solve of a small symmetric positive definite system | Both (Cholesky: Newton) | Worker and coordinator | TODO |
-| `lr/hyperparameters` | Defaults, validation, rejection of hyperparameters that do not apply to `method` | Both | Coordinator | TODO |
-| `lr/site` | `siteStats`, `newtonSiteStep`, `fedavgSiteStep`: pure functions of (data, β, hyperparameters) | Both | Worker (work function) | TODO |
-| `lr/coordinator` | Standardization from stats, `newtonUpdate`, `fedavgUpdate`, convergence check, damping | Both | Coordinator | TODO |
-| `lr/model` | Unstandardize coefficients, build the export object, `predictProba` | Both | Coordinator; inference anywhere | TODO |
+| `lr/math.js` | Stable sigmoid and log loss, dot product, matrix-vector product, Cholesky solve of a small symmetric positive definite system | Both (Cholesky: Newton) | Worker and coordinator | TODO |
+| `lr/hyperparameters.js` | Defaults, validation, rejection of hyperparameters that do not apply to `method` | Both | Coordinator | TODO |
+| `lr/workFunction.js` | `siteStats`, `newtonSiteStep`, `fedavgSiteStep`, and the `stage` dispatch. Self-contained, as the [shared constraints](../shared/implementation-plan.md#work-function-constraints) require | Both | Worker | TODO |
+| `lr/coordinator.js` | Standardization from stats, `newtonUpdate`, `fedavgUpdate`, convergence check, damping, result validation | Both | Coordinator | TODO |
+| `lr/model.js` | Unstandardize coefficients, build the export object, `predictProba` | Both | Coordinator; inference anywhere | TODO |
+| `lr/train.js` | The training loop: round 0, then rounds until a stop rule fires | Both | Coordinator | TODO |
 
-Site functions are **pure** (no DCP, no I/O). The work function is a thin wrapper that
-loads data through the [data source boundary](#data-source-boundary) and calls them. This
-lets integration tests run all rounds in one process without DCP.
+The site steps are **pure** (no DCP, no I/O), so integration tests run all rounds in one process
+with the local runner.
 
 ## Data flow
 
@@ -95,62 +107,26 @@ Per round, what moves:
 | Round 0, site → coordinator | n_k, per-feature Σx and Σx², count of each class, feature names | same |
 
 No row-level data appears in any site result. Every site result is an aggregate over all
-n_k rows. Data-locality tests check this (R6).
+n_k rows. The shared [data-locality tests](../shared/test-plan.md#data-locality-checks) check this (R6).
+Where a site gets its rows from (inline or remote) is the shared
+[data source boundary](../shared/implementation-plan.md#data-flow); this track never sees the difference.
 
-### Data source boundary
+## Jobs and slice contents
 
-The site functions take `{ X, y }` and never know where it came from. A small loader
-produces it from the slice input:
-
-- **Inline data (v0.1, [decision 0001](../decisions/0001-v0-1-send-data-with-slices.md)):**
-  the site's rows are the slice input (`jobData` in Alex's pseudocode). Standardization
-  happens in the work function, so the coordinator sends raw rows plus μ and σ.
-- **Remote data (later release):** the slice receives a data URI on the site's own server and
-  the work function fetches it. Distributive has offered to help with this.
-
-Only the loader changes between the two. Algorithms, payloads and tests stay the same.
-
-> In v0.1 the data travels with the slice, so slice placement does not affect correctness.
-> We still deploy one job per host, as in Alex's pseudocode, so the structure is unchanged
-> when remote data arrives and placement starts to matter.
-
-## DCP job design
-
-**Agreed** (Alex, 2026-11-05): one DCP job per site per round, each targeting that site's private compute
-group, all K jobs deployed together. This follows Alex's 2026-11-05 answer that the
-scheduler does not guarantee one slice per hospital and that hospital-specific private
-compute groups are the way to control placement. See
-[shared DCP job design](../shared/implementation-plan.md#dcp-job-design).
+Jobs follow the [shared job design](../shared/implementation-plan.md#discrete-jobs): one job per site
+per round, deployed together, each attached to that site's compute group. This is what
+logistic regression puts in them:
 
 | Item | Value |
 |---|---|
 | Work function | One function. `stage` argument selects `stats`, `newton` or `fedavg` |
-| Slice input | Data reference or inline rows (see boundary above) |
 | Slice arguments | `{ stage, round, beta, hyperparameters, N, mean, std, classWeights }` |
-| Slice result | The per-method result above, plain JSON numbers |
+| Slice result | The per-method result in [Data flow](#data-flow), plain JSON numbers |
 | Jobs per training run | K × (1 stats round + rounds run + retries) |
 | Expected run length | Newton about 5 to 10 rounds; FedAvg about 10 to 50 rounds (research estimates) |
 
-The work function must be self-contained (no `require` of package modules at runtime
-unless the shared spec settles how modules are shipped to workers, OQ3/OQ7).
-
-### Mapping to Alex's pseudocode
-
-Alex's suggested package shape (email received by 2026-11-08), and where each part of
-this track fits:
-
-| Alex's function | What it does | This track |
-|---|---|---|
-| `trainModelOnDcp(args)` | Loads data per host, creates the model, loops until finished, returns the model | `train()`. Round 0 (stats) is the first pass of the loop |
-| `loadLocalData(args)` | Gets each host's data | The inline [data loader](#data-source-boundary) |
-| `createModel(args)` | Initial model | β = 0 after hyperparameter validation |
-| `deployDcpTrainingStep(...)` | One job per host per round. Saves results to files as they arrive | Shared job runner. Slice args are `{ stage, round, beta, hyperparameters, N, mean, std, classWeights }` |
-| `configureJob(job, host)` | Sets `job.on()` handlers, e.g. writing each slice result to a file | Shared job runner. LR adds result validation (length, NaN, n_k) |
-| `workFunction(sliceData, sliceArgs)` | One federated training step on one host's data | Dispatches on `stage` to `siteStats`, `newtonSiteStep` or `fedavgSiteStep` |
-| `aggregateResults(args, model)` | Combines results, updates the model, and returns whether training is finished | `newtonUpdate` or `fedavgUpdate`, then the convergence check |
-
-Alex's order of work is: work function, then aggregation, then the loop (which may wait
-for v0.2). The [work breakdown](#work-breakdown) follows that order.
+Alex's order of work (work function, then aggregation, then the loop) is followed by the
+[work breakdown](#work-breakdown).
 
 ## Federated standardization (round 0)
 
@@ -160,8 +136,9 @@ site must use the same scale. Round 0 computes global statistics without moving 
 1. Each site returns n_k, Σx_j and Σx_j² per feature, its class counts, and its feature names.
 2. Coordinator computes N = Σ n_k, μ_j = Σ_k Σx_j / N and
    σ_j = sqrt(Σ_k Σx_j² / N − μ_j²). A feature with σ_j = 0 fails validation.
-3. Coordinator checks that every site has the same feature names in the same order and
-   that each site has both classes. Failures stop training **before** any training round
+3. Coordinator applies the shared cross-site checks
+   ([site data](../shared/implementation-plan.md#site-data)): same feature names in the same
+   order, and both classes at every site. Failures stop training **before** any training round
    is deployed.
 4. Coordinator checks each site against `minSiteRows` (see [Site size rule](#site-size-rule)).
    With `siteSizeCheck: "error"` a small site stops training here; with `"warn"` it is
@@ -198,7 +175,7 @@ still take part. Real patient data must use `"error"`.
 **Agreed** ([0003](../decisions/0003-lr-scope-site-rules-class-weights.md)); thresholds
 **Proposed**. Round 0 validation catches wrong names, order and types, but not a feature
 recorded in different units or coding at one site (see
-[data harmonization](summary.md#data-harmonization)). Those still have matching names, so
+[data harmonization](../shared/implementation-plan.md#data-harmonization)). Those still have matching names, so
 they pass silently. The round 0 sums already give every site's per-feature mean and
 standard deviation, so the coordinator can compare sites at no extra cost and with no extra
 data leaving any site.
@@ -347,33 +324,36 @@ Defaults are **Agreed** ([0002](../decisions/0002-newton-default-method.md), [00
 | `standardize` | Both | `true` | boolean | If `false`, round 0 still runs for validation, but μ = 0 and σ = 1 |
 | `maxRounds` | Both | Newton 25; FedAvg 100 | integer 1 to 1000 | Excludes round 0 and retries |
 | `tolerance` | Both | 1e-6 | number > 0 | Used by both convergence rules |
-| `minParticipants` | Both | K (all sites) | integer 1 to K | See OQ10 and [Failure handling](#failure-handling) |
 | `minSiteRows` | Both | `"auto"` | `"auto"` or integer ≥ 1 | Checked in round 0. See [Site size rule](#site-size-rule) |
 | `siteSizeCheck` | Both | `"error"` | `"error"`, `"warn"` | What happens to a site below `minSiteRows`. Public test datasets use `"warn"` |
 | `classWeight` | Both | `null` | `null`, `"balanced"`, or `{ "0": w₀, "1": w₁ }` with w > 0 | See [Class weights](#class-weights) |
 | `siteShiftWarning` | Both | 3 (**Proposed**) | `null` or number > 0 | Warn-only threshold, in standard deviations. See [Site shift check](#site-shift-check) |
-| `roundTimeoutMs` | Both | TODO, after round latency is measured | integer > 0 | Shared job runner setting |
-| `maxRoundRetries` | Both | 2 | integer ≥ 0 | Redeploys only the missing sites |
 | `damping` | Newton | 0 | number ≥ 0 | Starting value. Adjusted automatically |
 | `learningRate` | FedAvg | 0.1 | number > 0 | Step size of local gradient descent |
 | `localEpochs` | FedAvg | 5 | integer ≥ 1 | Local passes per round |
 | `batchSize` | FedAvg | `null` (full batch) | `null` or integer ≥ 1 | |
 | `proximalMu` | FedAvg | 0 | number ≥ 0 | FedProx term. 0 = plain FedAvg |
 
+Every track also accepts the [shared settings](../shared/implementation-plan.md#hyperparameter-validation)
+`minParticipants`, `roundTimeoutMs` and `maxRoundRetries`. The logistic regression default for
+`minParticipants` is K (all sites), so a partial round cannot happen unless the user lowers it
+(OQ10).
+
 Rules:
 
-- Validation runs on the coordinator **before any job is deployed** (LR-R3). Workers get
-  only validated values.
-- Passing a hyperparameter for the other method (e.g. `learningRate` with `method: "newton"`)
-  is an error, not silently ignored. TODO: confirm with the shared hyperparameter
-  validation spec.
-- Unknown keys are an error.
+- The [shared validation rules](../shared/implementation-plan.md#hyperparameter-validation) apply:
+  checked on the coordinator before any job is deployed, unknown keys are an error, and a
+  hyperparameter for the other method (e.g. `learningRate` with `method: "newton"`) is an error
+  (LR-R3).
 - Same name, same meaning: `l2` and `tolerance` mean the same thing in both methods
   because both optimize the same objective.
 
 ## Model output format
 
-Proposed LR fields inside the shared model format:
+The logistic regression payload, inside the
+[shared envelope](../shared/implementation-plan.md#model-output-format) (`formatVersion`,
+`modelType`, `featureNames`, and the `training` keys `runId`, `hyperparameters`, `participation`,
+`warnings`, `trainedAt`). Proposed LR fields:
 
 ```json
 {
@@ -384,6 +364,7 @@ Proposed LR fields inside the shared model format:
   "coefficients": [0.021, 0.004, "..."],
   "standardization": { "mean": [54.3, 246.2], "std": [9.1, 51.8] },
   "training": {
+    "runId": "run-2026-11-23-01",
     "method": "newton",
     "hyperparameters": { "...": "..." },
     "classWeights": [1, 1],
@@ -391,11 +372,15 @@ Proposed LR fields inside the shared model format:
     "rounds": 7,
     "converged": true,
     "finalLoss": 312.88,
-    "participation": [["site-a", "site-b", "site-c"], ["site-a", "site-b", "site-c"]],
-    "trainedAt": "ISO-8601 timestamp"
+    "participation": [
+      { "round": 1, "sites": ["site-a", "site-b", "site-c"], "missing": [] }
+    ],
+    "trainedAt": "2026-11-23T10:00:00Z"
   }
 }
 ```
+
+`participation` has one entry for each of the `rounds` rounds. The example shows the first.
 
 `intercept` and `coefficients` are on the **original feature scale**. Each coefficient is
 a log-odds ratio per unit of the raw feature. Conversion from the standardized fit:
@@ -404,7 +389,8 @@ transparency only. Inference does not need it. `training.classWeights` holds the
 [c₀, c₁]. If they are not [1, 1], predicted probabilities are not calibrated to the real
 prevalence (see [Class weights](#class-weights)).
 
-Inference with no dependencies (R5, LR-R2):
+Reference inference with no dependencies (R5, LR-R2). The package's `predict` also applies the
+[shared load and row checks](../shared/implementation-plan.md#model-output-format):
 
 ```js
 function predictProba(model, x) {
@@ -416,33 +402,36 @@ function predictProba(model, x) {
 
 ## Failure handling
 
-Per round, the shared job runner deploys to all sites, saves each site result as it arrives
-(Alex: a slice-result handler can write results to disk as they come in), waits up to
-`roundTimeoutMs`, then redeploys **only the missing sites**, up to `maxRoundRetries` times.
+The [shared failure handling](../shared/implementation-plan.md#failure-handling) sets the policy:
+retries redeploy only the missing sites, the first valid result wins, and a run below
+`minParticipants` stops with an error and no model. This section adds what is specific to
+logistic regression.
 
-A site result is treated as failed if it has the wrong length, contains NaN or Infinity, or
-reports an n_k different from round 0.
+**Extra result checks.** Besides the shared checks, a site result also fails if it has the wrong
+length for its method, or reports an n_k different from round 0.
 
-- **FedAvg:** if at least `minParticipants` sites responded, average those and continue.
-  Record who took part. Missing sites rejoin next round from the new β.
+**What "continue with the responders" means** once at least `minParticipants` sites returned:
+
+- **FedAvg:** average the responders and continue. Record who took part. Missing sites rejoin
+  next round from the new β.
 - **Newton-style:** a step computed without a site is a Newton step on a different objective.
-  **Agreed** ([0003](../decisions/0003-lr-scope-site-rules-class-weights.md)): retry as above. If still short but at least `minParticipants`,
-  take the step from the sites that responded and mark the round `partial` in
-  `participation`. Do not reuse a missing site's gradient from an earlier round, because it
-  was computed at a different β.
+  **Agreed** ([0003](../decisions/0003-lr-scope-site-rules-class-weights.md)): retry as the shared policy
+  says. If still short but at least `minParticipants`, take the step from the sites that
+  responded and mark the round partial in `training.participation`. Do not reuse a missing site's
+  gradient from an earlier round, because it was computed at a different β.
 
   **Trade-off:** after a partial round the final model **no longer equals pooled training**
   (LR-R1 holds only for runs with no partial rounds). With the default `minParticipants` = K
   this cannot happen; it happens only if the user lowers `minParticipants`. Any partial round
   is reported in `participation`, and the user docs must say so.
-- **Below `minParticipants`:** stop, save the checkpoint, and return an error that names the
-  missing sites. Do not return a model.
 
-**Result persistence and resume (R9).** After each round the coordinator checkpoints
+**Checkpoint (R9).** On top of the shared
+[result persistence](../shared/implementation-plan.md#result-persistence), after each round the
+coordinator checkpoints
 `{ round, beta, damping, lossHistory, participation, stats (μ, σ, N), hyperparameters }`.
-`train({ resumeFrom: checkpoint })` continues from the next round. Within a round, site
-results already saved for the same `round` and β are reused, so only missing sites are
-redeployed. Checkpoints contain only aggregates, the same as site results.
+`train({ resumeFrom: checkpoint })` continues from the next round. A checkpoint holds only
+aggregates, the same as site results. A saved site result is reused only for the same `round` and
+β, which is the shared fingerprint rule applied to this track.
 
 ## Privacy risks of shared information
 
@@ -463,7 +452,7 @@ design keeps it possible: every update above is a sum or a weighted sum.
 d × d matrix sums, and one Cholesky solve per Newton round (d is tens, not thousands). We
 write these in plain JavaScript with tests against known values. This keeps the work
 function self-contained, avoids WASM and bundling questions, and meets the
-[dependency policy](../shared/dependencies.md). Recorded in [0003](../decisions/0003-lr-scope-site-rules-class-weights.md).
+[shared dependency policy](../shared/dependencies.md). Recorded in [0003](../decisions/0003-lr-scope-site-rules-class-weights.md).
 
 Test-only (not shipped, still pinned): a centralized reference fit, e.g. scikit-learn run
 offline to produce expected coefficients stored as fixtures. TODO: decide whether fixtures
@@ -471,22 +460,22 @@ are generated in Python or checked in as JSON only.
 
 ## Work breakdown
 
-Ordered as Alex suggested: work function, then aggregation, then the DCP loop.
+Ordered as Alex suggested: work function, then aggregation, then the DCP loop. The shared tasks
+(local runner, DCP runner, validation rules, model envelope, partial participation and result
+persistence mechanics, worker script, remote data loader) are in the
+[shared work breakdown](../shared/implementation-plan.md#work-breakdown).
 
 | # | Task | Method | Requirement IDs | Release | Owner | Status |
 |---|---|---|---|---|---|---|
-| 1 | `lr/math`: stable sigmoid and log loss, Cholesky solve | Both | R1 | v0.1 | TODO | Not started |
-| 2 | Reference fixtures (centralized fits) for tests | Both | LR-R1 | v0.1 | TODO | Not started |
-| 3 | **Work function:** `siteStats`, `newtonSiteStep`, `fedavgSiteStep` (with class weights), inline data loader, `stage` dispatch | Both | R1, R6 | v0.1 | TODO | Not started |
-| 4 | **Aggregation:** stats → μ, σ, N, class weights and site validation (incl. site size rule and site shift check); `newtonUpdate` with damping; `fedavgUpdate`; convergence check | Both | R1, LR-R1 | v0.1 | TODO | Not started |
-| 5 | `lr/hyperparameters`: defaults (incl. `classWeight`, `minSiteRows: "auto"`, `siteSizeCheck`), validation, cross-method rejection | Both | R2, LR-R3 | v0.1 | TODO | Not started |
-| 6 | Unstandardize, export, `predictProba` | Both | R4, R5, LR-R2 | v0.1 | TODO | Not started |
-| 7 | Local runner: the full loop in one process, no DCP | Both | R1, R4 | v0.1 | TODO | Not started |
-| 8 | **DCP loop:** one job per host per round, `job.on()` result saving, timeouts | Both | R3 | v0.1 or v0.2 (OQ13) | TODO | Not started |
-| 9 | Partial participation rules | Both | R8 | With task 8 | TODO | Not started |
-| 10 | Checkpoint and resume | Both | R9 | With task 8 | TODO | Not started |
-| 11 | Remote data loader | Both | R6, R7 | Later ([0001](../decisions/0001-v0-1-send-data-with-slices.md)) | TODO | Not started |
-| 12 | Stretch: linear regression for continuous targets (DAPSA, PASI). One-round closed form reusing the Newton plumbing ([0003](../decisions/0003-lr-scope-site-rules-class-weights.md)) | Newton | R1 | After v0.1 | TODO | Not started |
+| 1 | `lr/math`: stable sigmoid and log loss, Cholesky solve | Both | R1 | v0.1 | TODO | Prototype |
+| 2 | Reference fixtures (centralized fits) for tests | Both | LR-R1 | v0.1 | TODO | Prototype (`test/fixtures/`) |
+| 3 | **Work function:** `siteStats`, `newtonSiteStep`, `fedavgSiteStep` (with class weights), `stage` dispatch | Both | R1, R6 | v0.1 | TODO | Prototype (Newton only) |
+| 4 | **Aggregation:** stats → μ, σ, N, class weights and site validation (incl. site size rule and site shift check); `newtonUpdate` with damping; `fedavgUpdate`; convergence check | Both | R1, LR-R1 | v0.1 | TODO | Prototype (Newton only) |
+| 5 | `lr/hyperparameters`: defaults (incl. `classWeight`, `minSiteRows: "auto"`, `siteSizeCheck`), validation, cross-method rejection | Both | R2, LR-R3 | v0.1 | TODO | Prototype |
+| 6 | Unstandardize, export, `predictProba` | Both | R4, R5, LR-R2 | v0.1 | TODO | Prototype |
+| 7 | Per-method partial-participation rules (Newton partial round, FedAvg average), on shared S6 | Both | R8 | With shared S3 | TODO | Not started |
+| 8 | Per-round checkpoint and resume (LR fields), on shared S7 | Both | R9 | With shared S3 | TODO | Not started |
+| 9 | Stretch: linear regression for continuous targets (DAPSA, PASI). One-round closed form reusing the Newton plumbing ([0003](../decisions/0003-lr-scope-site-rules-class-weights.md)) | Newton | R1 | After v0.1 | TODO | Not started |
 
 ## Owners
 
