@@ -34,3 +34,4 @@ reproducible, and auditable on those systems:
 
 | Package | Exact version | Used by | Runtime location | Why it is needed | License | DCP/WASM compatibility | Alternatives considered | Approved by |
 |---|---|---|---|---|---|---|---|---|
+| `dcp-client` | 5.9.0 | `src/runners/dcp*.js`, `demo/` | Coordinator machine only. Not shipped to workers. Not needed for local runs or inference. | Submit and track DCP jobs (R3). [Decision 0006](../decisions/0006-dcp-client-dependency.md) | MIT | Runs on the coordinator, not in the worker sandbox | Calling DCP's protocol directly | TODO (proposed) |

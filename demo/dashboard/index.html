@@ -1,0 +1,1193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Federated Learning on DCP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f6f7;
+    --surface: #ffffff;
+    --surface-2: #fafafa;
+    --border: #e6e6e9;
+    --border-strong: #d4d4d8;
+    --text: #18181b;
+    --text-2: #3f3f46;
+    --muted: #71717a;
+    --faint: #a1a1aa;
+    --accent: #2563eb;
+    --accent-soft: #eff4ff;
+    --good: #059669;
+    --good-soft: #ecfdf5;
+    --data: #d97706;
+    --data-soft: #fff7ed;
+    --bad: #dc2626;
+    --bad-soft: #fef2f2;
+    --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .06);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; } /* .btn sets display, which would otherwise beat hidden */
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  button { font: inherit; }
+
+  /* ---- top bar ---- */
+  header {
+    height: 60px; flex: none; display: flex; align-items: center; gap: 20px;
+    padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+  .brand .mark { width: 28px; height: 28px; border-radius: 7px; background: var(--text); display: grid; place-items: center; flex: none; }
+  .brand h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; }
+  .brand .sub { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .brand .sep { width: 1px; height: 18px; background: var(--border); flex: none; }
+  .seg { display: flex; padding: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+  .seg button {
+    border: 0; background: none; color: var(--muted); padding: 5px 12px; border-radius: 6px;
+    font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+  body.training .seg button:not(.on) { opacity: .5; cursor: default; }
+  .btn {
+    background: var(--text); color: #fff; border: 0; border-radius: 8px; padding: 8px 16px;
+    font-size: 13.5px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn:hover { background: #27272a; }
+  .btn:disabled { background: var(--border-strong); cursor: default; }
+  .btn.ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); }
+  .btn.ghost:hover { background: var(--surface-2); }
+
+  /* ---- layout ---- */
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; padding: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  .stage { position: relative; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .status {
+    display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); min-height: 52px;
+  }
+  .status .pill {
+    font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+    background: var(--bg); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap;
+  }
+  body.training .status .pill { background: var(--accent-soft); color: var(--accent); border-color: #d6e2ff; }
+  .status .text { color: var(--muted); font-size: 13.5px; flex: 1; min-width: 0; }
+  .metrics { display: flex; gap: 22px; flex: none; }
+  .metric .l { font-size: 11px; color: var(--faint); line-height: 1.2; }
+  .metric .v { font: 500 14px var(--mono); color: var(--text); display: flex; align-items: center; gap: 8px; line-height: 1.4; }
+  .metric .spark { width: 64px; height: 18px; }
+  .status .text b { color: var(--text); font-weight: 500; }
+  #diagram { flex: 1; width: 100%; min-height: 0; display: block; }
+  .banner {
+    position: absolute; left: 20px; right: 20px; bottom: 16px; padding: 10px 14px; border-radius: 8px;
+    background: var(--bad-soft); border: 1px solid #fecaca; color: #991b1b; font-size: 13px; display: none;
+  }
+  .banner.show { display: block; }
+
+  /* ---- sidebar ---- */
+  aside { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  aside .card { padding: 14px 16px; }
+  aside h2 { margin: 0 0 10px; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .02em; display: flex; justify-content: space-between; align-items: baseline; }
+  aside h2 span { font-weight: 500; color: var(--faint); }
+
+  .join { display: flex; gap: 14px; }
+  .qr { width: 84px; height: 84px; flex: none; border: 1px solid var(--border); border-radius: 8px; padding: 4px; display: grid; place-items: center; background: #fff; }
+  .qr svg { width: 100%; height: 100%; display: block; }
+  .qr span { color: var(--faint); font-size: 10.5px; text-align: center; line-height: 1.3; }
+  .join-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .join-info .t { font-weight: 600; font-size: 13.5px; }
+  .join-link { font: 12px var(--mono); color: var(--accent); text-decoration: none; word-break: break-all; line-height: 1.4; }
+  .join-link:hover { text-decoration: underline; }
+  .join-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: auto; }
+  .mini {
+    border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-2);
+    border-radius: 6px; padding: 3px 9px; font-size: 12px; font-weight: 500; cursor: pointer;
+  }
+  .mini:hover { background: var(--surface-2); color: var(--text); }
+  .join-count { color: var(--muted); font-size: 12px; }
+  .join-pending { color: var(--data); font-size: 12px; }
+  .join-pending:empty { display: none; }
+
+  .spark { display: block; }
+  .spark .area { fill: var(--accent-soft); }
+  .spark .line { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+  .spark .pt { fill: var(--accent); }
+  .spark .none { fill: var(--faint); font: 11px var(--sans); }
+
+  .weights .w { display: grid; grid-template-columns: 100px 1fr 52px; gap: 10px; align-items: center; font-size: 12px; height: 17px; }
+  .weights .w .n { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .weights .w .v { font: 11.5px var(--mono); text-align: right; color: var(--muted); }
+  .weights .track { position: relative; height: 6px; background: var(--bg); border-radius: 3px; }
+  .weights .track::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--border-strong); }
+  .weights .fill { position: absolute; top: 0; bottom: 0; border-radius: 3px; transition: left .7s, width .7s; }
+  .weights .fill.pos { background: var(--accent); }
+  .weights .fill.neg { background: #f59e8b; }
+  .empty-note { color: var(--faint); font-size: 12.5px; }
+
+  .log { flex: 1; min-height: 160px; display: flex; flex-direction: column; padding-bottom: 6px !important; }
+  #feed { list-style: none; margin: 0 -16px; padding: 0; overflow-y: auto; flex: 1; }
+  #feed li {
+    display: grid; grid-template-columns: 54px 6px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+    padding: 4px 16px; font-size: 12.5px; color: var(--text-2); animation: feedIn .3s ease-out;
+  }
+  #feed li:hover { background: var(--surface-2); }
+  #feed .tm { font: 11px var(--mono); color: var(--faint); }
+  #feed .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
+  #feed .msg { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #feed .msg b { font-weight: 600; color: var(--text); text-transform: capitalize; }
+  #feed .meta { font: 11px var(--mono); color: var(--faint); white-space: nowrap; }
+  #feed li.out .dot { background: var(--accent); }
+  #feed li.in .dot { background: var(--good); }
+  #feed li.local .dot { background: var(--data); }
+  #feed li.coord .dot { background: var(--text); }
+  #feed li.join .dot { background: var(--good); }
+  #feed li.err .dot { background: var(--bad); }
+  #feed li.err .msg { color: var(--bad); }
+  @keyframes feedIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ---- diagram ---- */
+  svg text { font-family: var(--sans); }
+  .wire { fill: none; stroke: var(--border-strong); stroke-width: 1.25; }
+  .wire.live { stroke: #c4c4cc; }
+  .hub rect.box { fill: var(--surface); stroke: var(--border-strong); stroke-width: 1; transition: stroke .3s; }
+  .hub .h-title { font-size: 14px; font-weight: 600; fill: var(--text); }
+  .hub .h-sub { font-size: 11.5px; fill: var(--muted); }
+  .hub.busy rect.box { stroke: var(--text); }
+  .hub .ic { fill: none; stroke: var(--text); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .sched rect.box { fill: var(--surface-2); }
+  .tag { font-size: 10.5px; font-weight: 500; fill: var(--faint); letter-spacing: .04em; }
+
+  .machine { transition: opacity .4s; }
+  .machine .mon { fill: var(--surface); stroke: var(--text-2); stroke-width: 1.5; transition: stroke .25s, fill .25s; }
+  .machine .scr { fill: var(--surface-2); transition: fill .25s; }
+  .machine .stand { fill: none; stroke: var(--text-2); stroke-width: 1.5; stroke-linecap: round; transition: stroke .25s; }
+  .machine .db { fill: var(--surface); stroke: var(--data); stroke-width: 1.4; transition: fill .25s; }
+  .machine .m-name { font-size: 13.5px; font-weight: 600; fill: var(--text); text-transform: capitalize; }
+  .machine .m-rows { font-size: 12px; fill: var(--muted); font-family: var(--mono); }
+  .machine .m-status { font-size: 11.5px; fill: var(--faint); }
+  .machine .glyph { font-size: 15px; font-weight: 600; text-anchor: middle; }
+  .machine.working .mon, .machine.working .stand { stroke: var(--accent); }
+  .machine.working .scr { fill: var(--accent-soft); }
+  .machine.working .m-status { fill: var(--accent); }
+  .machine.reading .db { fill: var(--data-soft); }
+  .machine.reading .m-status { fill: var(--data); }
+  .machine.sent .mon, .machine.sent .stand { stroke: var(--good); }
+  .machine.sent .scr { fill: var(--good-soft); }
+  .machine.sent .m-status { fill: var(--good); }
+  .machine.failed .mon, .machine.failed .stand { stroke: var(--bad); }
+  .machine.failed .m-status { fill: var(--bad); }
+  .machine.ghost { opacity: .45; }
+  .machine.offline { opacity: .4; }
+  .machine.offline .mon { stroke-dasharray: 4 3; }
+  .machine .kick { opacity: 0; cursor: pointer; transition: opacity .15s; }
+  .machine .kick circle { fill: var(--surface); stroke: var(--border-strong); }
+  .machine .kick path { stroke: var(--muted); stroke-width: 1.4; stroke-linecap: round; }
+  body:not(.training) .machine:hover .kick { opacity: 1; }
+  .machine .kick:hover circle { stroke: var(--bad); }
+  .machine .kick:hover path { stroke: var(--bad); }
+
+  .packet rect { rx: 9; }
+  .packet.out rect { fill: var(--accent); }
+  .packet.in rect { fill: var(--good); }
+  .packet text { fill: #fff; font: 600 10.5px var(--mono); }
+  .rowdot { fill: var(--data); }
+
+  .empty-slot rect { fill: none; stroke: var(--border-strong); stroke-width: 1.25; stroke-dasharray: 5 5; }
+  .empty-title { fill: var(--text); font-size: 14px; font-weight: 600; }
+  .empty-sub { fill: var(--muted); font-size: 12.5px; }
+
+  /* ---- dialogs ---- */
+  dialog { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 14px; padding: 0; box-shadow: 0 24px 48px -12px rgba(16, 24, 40, .18); }
+  dialog::backdrop { background: rgba(24, 24, 27, .32); backdrop-filter: blur(2px); }
+  #pw { width: min(420px, calc(100vw - 32px)); padding: 24px; }
+  #pw h3 { margin: 0 0 4px; font-size: 17px; font-weight: 600; }
+  #pw p { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; }
+  #pw label { display: block; font-size: 13px; font-weight: 500; margin: 12px 0 6px; }
+  #pw input[type=password] { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; }
+  #pw input[type=password]:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  #pw input.bad { border-color: var(--bad); }
+  #pw .check { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; font-weight: 400; margin-top: 12px; }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+  #pw .msg { color: var(--bad); font-size: 13px; min-height: 18px; margin-top: 10px; }
+
+  #results { width: min(1000px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+  #results[open] { animation: pop .25s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .r-head { padding: 22px 24px 18px; border-bottom: 1px solid var(--border); }
+  .r-head .eyebrow { font-size: 12px; font-weight: 600; color: var(--good); display: flex; align-items: center; gap: 6px; }
+  .r-head h3 { margin: 4px 0 2px; font-size: 19px; font-weight: 600; letter-spacing: -.01em; }
+  .r-head p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .r-grid { display: grid; grid-template-columns: 1.25fr 1fr 1fr; }
+  .r-card { padding: 20px 24px; border-right: 1px solid var(--border); min-width: 0; }
+  .r-card:last-child { border-right: 0; }
+  .r-card h4 { margin: 0; font-size: 13.5px; font-weight: 600; }
+  .r-card .sub { color: var(--muted); font-size: 12.5px; margin: 2px 0 16px; }
+  .bar-row { display: grid; grid-template-columns: 128px 1fr 44px; align-items: center; gap: 10px; margin: 8px 0; font-size: 13px; }
+  .bar-row .n { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-row .v { font: 12.5px var(--mono); text-align: right; color: var(--muted); }
+  .bar { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: var(--border-strong); border-radius: 4px; transition: width .9s cubic-bezier(.2, .8, .2, 1); }
+  .bar-row.fed .n { color: var(--text); font-weight: 600; }
+  .bar-row.fed .bar > div { background: var(--accent); }
+  .bar-row.fed .v { color: var(--text); font-weight: 500; }
+  .lift { margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+  .lift b { color: var(--text); font-weight: 600; }
+  .match-big { font: 500 30px var(--mono); color: var(--text); line-height: 1.1; letter-spacing: -.02em; }
+  .match-l { color: var(--muted); font-size: 12.5px; margin: 6px 0 12px; }
+  details { font-size: 12.5px; }
+  summary { cursor: pointer; color: var(--accent); font-weight: 500; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 8px; }
+  th, td { text-align: right; padding: 4px; border-bottom: 1px solid var(--border); font: 11.5px var(--mono); }
+  th:first-child, td:first-child { text-align: left; font-family: var(--sans); }
+  th { color: var(--muted); font-weight: 500; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+  .stat .v { font: 500 16px var(--mono); }
+  .stat .l { font-size: 12px; color: var(--muted); }
+  .stat.wide { grid-column: span 2; }
+  .ratio { height: 6px; border-radius: 3px; background: var(--data-soft); overflow: hidden; margin-top: 6px; display: flex; }
+  .ratio div { background: var(--accent); }
+  .devices { margin-top: 16px; font-size: 12px; color: var(--muted); }
+  .devices div { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+  .devices span:first-child { text-transform: capitalize; }
+  .devices span:last-child { font-family: var(--mono); color: var(--text-2); }
+  .r-foot { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface-2); border-radius: 0 0 14px 14px; }
+  .r-foot .note { color: var(--muted); font-size: 12px; max-width: 620px; }
+
+  @media (max-width: 1100px) {
+    body { overflow: auto; }
+    main { grid-template-columns: 1fr; }
+    .stage { min-height: 520px; }
+    .log { max-height: 360px; }
+    .r-grid { grid-template-columns: 1fr; }
+    .r-card { border-right: 0; border-bottom: 1px solid var(--border); }
+    .brand .sub, .brand .sep { display: none; }
+  }
+  @media (max-width: 640px) {
+    header { height: auto; flex-wrap: wrap; padding: 12px 16px; gap: 10px; }
+    main { padding: 12px 16px; }
+    .seg { order: 3; width: 100%; overflow-x: auto; }
+    .status { flex-wrap: wrap; }
+    .status .text { flex-basis: calc(100% - 90px); }
+    .metrics { width: 100%; }
+  }
+</style>
+<script id="qrlib" async src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="mark" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round">
+        <circle cx="8" cy="3" r="1.6"/><circle cx="3" cy="13" r="1.6"/><circle cx="13" cy="13" r="1.6"/>
+        <path d="M7.2 4.4 3.8 11.6M8.8 4.4l3.4 7.2"/>
+      </svg>
+    </div>
+    <h1>Federated Learning on DCP</h1>
+    <div class="sep"></div>
+    <div class="sub">Arthritis risk · logistic regression · CDC BRFSS 2024</div>
+  </div>
+  <div class="seg" role="group" aria-label="Run mode">
+    <button data-mode="dcp" title="Each machine's rows stay on it; needs one compute group per machine">DCP · machines</button>
+    <button data-mode="dcpjob" title="Real DCP; each state's rows are sent inside its job (demo stand-in for local data)">DCP · data in job</button>
+    <button data-mode="sim" title="Everything runs on this computer">Simulation</button>
+  </div>
+  <button class="btn ghost" id="reset" hidden title="Clear the last run and go back to Ready. Connected machines stay.">Reset</button>
+  <button class="btn" id="train">Start training</button>
+</header>
+
+<main>
+  <section class="card stage">
+    <div class="status">
+      <span class="pill" id="phaseRound">Ready</span><span class="text" id="phaseText"></span>
+      <div class="metrics">
+        <div class="metric"><div class="l">Loss</div><div class="v"><svg class="spark" id="spark" viewBox="0 0 300 36" preserveAspectRatio="none"></svg><span id="tLoss">–</span></div></div>
+        <div class="metric"><div class="l">DCP jobs</div><div class="v" id="tJobs">0</div></div>
+        <div class="metric"><div class="l">Cost</div><div class="v" id="tCost">–</div></div>
+      </div>
+    </div>
+    <svg id="diagram" viewBox="0 8 1000 512" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Live diagram of the federated training system"></svg>
+    <div class="banner" id="banner"></div>
+  </section>
+
+  <aside>
+    <section class="card">
+      <h2>Join from another machine</h2>
+      <div class="join">
+        <div class="qr" id="qr" aria-label="QR code for the join link"></div>
+        <div class="join-info">
+          <a id="joinLink" class="join-link" target="_blank" rel="noopener"></a>
+          <div class="join-count" id="joinCount"></div>
+          <div class="join-pending" id="joinPending"></div>
+          <div class="join-row">
+            <button class="mini" id="joinCopy">Copy link</button>
+            <button class="mini" id="joinPick" hidden title="This computer has several network addresses; try the next one">Other address</button>
+            <button class="mini" id="simAdd" hidden>+ Add</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Model weights <span>sent each round</span></h2>
+      <div id="weights" class="weights"><div class="empty-note">Shown after round 0.</div></div>
+    </section>
+
+    <section class="card log">
+      <h2>Activity <span id="feedCount"></span></h2>
+      <ul id="feed"></ul>
+    </section>
+  </aside>
+</main>
+
+<dialog id="pw">
+  <form id="pwForm" method="dialog">
+    <h3>Unlock DCP</h3>
+    <p>Unlocks your keystores in ~/.dcp for this session. Passwords go only to the local demo server and are not saved.</p>
+    <div id="pwIdWrap">
+      <label for="pwId">API key (identity) password</label>
+      <input type="password" id="pwId" autocomplete="off">
+    </div>
+    <div id="pwPayWrap">
+      <label for="pwPay">Bank account password</label>
+      <input type="password" id="pwPay" autocomplete="off">
+    </div>
+    <label class="check" id="pwSameWrap"><input type="checkbox" id="pwSame"> Both keystores use the same password</label>
+    <div class="msg" id="pwMsg"></div>
+    <div class="actions">
+      <button type="button" class="btn ghost" id="pwCancel">Cancel</button>
+      <button type="submit" class="btn" id="pwGo">Unlock and train</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="results" aria-labelledby="rTitle">
+  <div class="r-head">
+    <div class="eyebrow">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 8.5 3.2 3L13 4.5"/></svg>
+      Training complete
+    </div>
+    <h3 id="rTitle">Training complete</h3>
+    <p id="rSub"></p>
+  </div>
+  <div class="r-grid">
+    <div class="r-card">
+      <h4>Federated vs each state alone</h4>
+      <div class="sub" id="rAucSub">Test AUC on held-out rows (higher is better)</div>
+      <div id="rBars"></div>
+      <div class="lift" id="rLift"></div>
+    </div>
+    <div class="r-card">
+      <h4>Same model as pooling the data</h4>
+      <div class="sub">Compared with scikit-learn trained on all rows in one place</div>
+      <div class="match-big" id="rDiff">–</div>
+      <div class="match-l" id="rDiffL">largest coefficient difference</div>
+      <div class="match-l" id="rPooledAuc"></div>
+      <details><summary>Show coefficients</summary><div id="rCoefs"></div></details>
+    </div>
+    <div class="r-card">
+      <h4>Run</h4>
+      <div class="sub" id="rModeSub"></div>
+      <div class="stats-grid" id="rStats"></div>
+      <div class="devices" id="rDevices"></div>
+    </div>
+  </div>
+  <div class="r-foot">
+    <div class="note" id="rNote"></div>
+    <div class="actions" style="margin:0">
+      <button class="btn ghost" id="rClose">Close</button>
+      <button class="btn" id="rAgain">Train again</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  var $ = function (id) { return document.getElementById(id); };
+  var svg = $('diagram');
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var FEATURE_LABELS = {
+    ageGroup: 'Age group', female: 'Female', bmi: 'BMI', currentSmoker: 'Current smoker', formerSmoker: 'Former smoker',
+    exercise: 'Exercises', diabetes: 'Diabetes', generalHealth: 'General health', education: 'Education', incomeGroup: 'Income'
+  };
+
+  var mode = 'dcp';
+  var config = null;
+  var sites = [];          // participants drawn in the diagram
+  var L = {};              // per-site diagram elements and state
+  var queues = {};         // per-site animation chains
+  var gate = Promise.resolve();
+  var featureNames = null;
+  var run = { jobs: 0, dcc: null, losses: [] };
+  var maxRounds = 10;
+
+  // ---------- helpers ----------
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(tag, attrs, text, parent) { var e = el(tag, attrs, parent); e.textContent = text; return e; }
+  function nice(name) { return String(name).replace(/-/g, ' '); }
+  function title(name) { return nice(name).replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
+  function esc(s) { var d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+  function fmtBytes(b) {
+    if (b < 1024) return Math.round(b) + ' B';
+    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+    return (b / 1024 / 1024).toFixed(2) + ' MB';
+  }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function ease(t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  function clock() { var d = new Date(); return [d.getHours(), d.getMinutes(), d.getSeconds()].map(function (n) { return (n < 10 ? '0' : '') + n; }).join(':'); }
+  function dataInJob() { return mode === 'dcpjob'; }
+  function noun(n) { return (dataInJob() ? 'state' : 'machine') + (n === 1 ? '' : 's'); }
+
+  // ---------- diagram ----------
+  var COORD = { x: 500, y: 28, w: 280, h: 72 };
+  var SCHED = { x: 500, y: 196, w: 200, h: 44 };
+  var M_TOP = 340;          // top of each machine's monitor
+  var layer = {};
+
+  /** Machine positions and size for any number of machines: one row, shrinking past six. */
+  function layoutFor(n) {
+    var gap = n <= 1 ? 0 : Math.min(160, 880 / (n - 1));
+    var scale = n <= 6 ? 1 : Math.max(0.55, Math.min(1, gap / 108));
+    return {
+      scale: scale,
+      x: function (k) { return 500 + (k - (n - 1) / 2) * gap; },
+      lane: function (k) { return 500 + (k - (n - 1) / 2) * (n <= 1 ? 0 : Math.min(16, 120 / (n - 1))); },
+      fan: function (k) { return 500 + (k - (n - 1) / 2) * (n <= 1 ? 0 : Math.min(24, 160 / (n - 1))); }
+    };
+  }
+
+  function hubIcon(kind, x, y, parent) {
+    var g = el('g', { class: 'ic', transform: 'translate(' + x + ',' + y + ')' }, parent);
+    if (kind === 'coord') {
+      el('rect', { x: 0, y: 0, width: 22, height: 15, rx: 2.5 }, g);
+      el('path', { d: 'M7 20h8M11 15v5' }, g);
+      el('path', { d: 'M5 10l3.5-3.5 3 2.5L17 4' }, g);
+    } else {
+      el('circle', { cx: 11, cy: 10, r: 9 }, g);
+      el('path', { d: 'M2 10h18M11 1c3 3 3 15 0 18M11 1c-3 3-3 15 0 18' }, g);
+    }
+    return g;
+  }
+
+  function buildDiagram(opts) {
+    opts = opts || {};
+    svg.innerHTML = '';
+    layer.wires = el('g', {}, svg);
+    layer.nodes = el('g', {}, svg);
+    layer.packets = el('g', {}, svg);
+    L = {}; queues = {};
+    var lay = layoutFor(sites.length);
+
+    // coordinator → scheduler trunk
+    el('path', { d: 'M500 ' + (COORD.y + COORD.h) + ' L500 ' + SCHED.y, class: 'wire live' }, layer.wires);
+
+    sites.forEach(function (s, k) {
+      var x = lay.x(k), sx = lay.fan(k), lx = lay.lane(k);
+      var y0 = SCHED.y + SCHED.h, y1 = M_TOP - 6;
+      var link = el('path', { d: 'M' + sx + ' ' + y0 + ' C' + sx + ' ' + (y0 + 60) + ' ' + x + ' ' + (y1 - 60) + ' ' + x + ' ' + y1, class: 'wire' }, layer.wires);
+      var downA = el('path', { d: 'M' + lx + ' ' + (COORD.y + COORD.h) + ' L' + lx + ' ' + SCHED.y, fill: 'none', stroke: 'none' }, layer.wires);
+      var up = el('path', { d: 'M' + x + ' ' + y1 + ' C' + x + ' ' + (y1 - 60) + ' ' + sx + ' ' + (y0 + 60) + ' ' + sx + ' ' + y0 +
+        ' L' + lx + ' ' + SCHED.y + ' L' + lx + ' ' + (COORD.y + COORD.h), fill: 'none', stroke: 'none' }, layer.wires);
+      L[s.name] = { k: k, x: x, scale: lay.scale, link: link, up: up, downA: downA, down: link, round: -1, distributed: false, n: s.rows || null, p: s };
+      queues[s.name] = Promise.resolve();
+    });
+
+    // coordinator
+    var c = el('g', { class: 'hub coord' }, layer.nodes);
+    el('rect', { x: COORD.x - COORD.w / 2, y: COORD.y, width: COORD.w, height: COORD.h, rx: 10, class: 'box' }, c);
+    hubIcon('coord', COORD.x - COORD.w / 2 + 20, COORD.y + 25, c);
+    txt('text', { x: COORD.x - COORD.w / 2 + 58, y: COORD.y + 31, class: 'h-title' }, 'Coordinator', c);
+    layer.coordStatus = txt('text', { x: COORD.x - COORD.w / 2 + 58, y: COORD.y + 50, class: 'h-sub' }, idleStatus(), c);
+    layer.coord = c;
+
+    // scheduler
+    var s = el('g', { class: 'hub sched' }, layer.nodes);
+    el('rect', { x: SCHED.x - SCHED.w / 2, y: SCHED.y, width: SCHED.w, height: SCHED.h, rx: SCHED.h / 2, class: 'box' }, s);
+    hubIcon('sched', SCHED.x - SCHED.w / 2 + 16, SCHED.y + 12, s);
+    txt('text', { x: SCHED.x - SCHED.w / 2 + 48, y: SCHED.y + 27, class: 'h-title', style: 'font-size:13px' }, 'DCP scheduler', s);
+    layer.sched = s;
+
+    if (!sites.length) {
+      var e = el('g', { class: 'empty-slot' }, layer.nodes);
+      el('rect', { x: 290, y: M_TOP - 10, width: 420, height: 110, rx: 12 }, e);
+      txt('text', { x: 500, y: M_TOP + 38, 'text-anchor': 'middle', class: 'empty-title' },
+        mode === 'dcp' ? 'Waiting for machines to join' : 'No ' + noun(2) + ' yet', e);
+      txt('text', { x: 500, y: M_TOP + 60, 'text-anchor': 'middle', class: 'empty-sub' },
+        mode === 'dcp' ? 'Scan the QR code or open the join link on another computer' : 'Press “+ Add” in the join panel', e);
+    }
+
+    sites.forEach(function (st) { drawMachine(st, opts.appear && opts.appear.indexOf(st.name) >= 0); });
+  }
+
+  /** One machine, drawn around (0, 0) = top centre of its monitor, then placed and scaled. */
+  function drawMachine(st, animateIn) {
+    var o = L[st.name];
+    var g = el('g', { class: 'machine', transform: 'translate(' + o.x + ',' + M_TOP + ') scale(' + o.scale + ')' }, layer.nodes);
+    el('rect', { x: -36, y: 0, width: 72, height: 48, rx: 5, class: 'mon' }, g);
+    el('rect', { x: -30, y: 6, width: 60, height: 36, rx: 2, class: 'scr' }, g);
+    el('path', { d: 'M0 48 V58 M-14 58 H14', class: 'stand' }, g);
+    o.glyph = txt('text', { x: 0, y: 30, class: 'glyph' }, '', g);
+    // data cylinder
+    var cy = 72;
+    el('path', { d: 'M-16 ' + cy + ' V' + (cy + 20) + ' A16 5 0 0 0 16 ' + (cy + 20) + ' V' + cy, class: 'db' }, g);
+    el('ellipse', { cx: 0, cy: cy, rx: 16, ry: 5, class: 'db' }, g);
+    el('path', { d: 'M-16 ' + (cy + 10) + ' A16 5 0 0 0 16 ' + (cy + 10), class: 'db', fill: 'none' }, g);
+    txt('text', { x: 0, y: cy + 50, class: 'm-name', 'text-anchor': 'middle' }, nice(st.name), g);
+    o.rows = txt('text', { x: 0, y: cy + 67, class: 'm-rows', 'text-anchor': 'middle' }, o.n ? o.n.toLocaleString() + ' rows' : '', g);
+    o.status = txt('text', { x: 0, y: cy + 84, class: 'm-status', 'text-anchor': 'middle' }, '', g);
+    var tip = el('title', {}, g); tip.textContent = nice(st.name) + (st.device ? ' · ' + st.device : '') + (st.port ? ' · localhost:' + st.port : '');
+    // remove (shown on hover while idle)
+    var x = el('g', { class: 'kick', transform: 'translate(40,-6)' }, g);
+    el('circle', { r: 8 }, x);
+    el('path', { d: 'M-3 -3 L3 3 M3 -3 L-3 3' }, x);
+    var t = el('title', {}, x); t.textContent = 'Remove ' + nice(st.name);
+    x.addEventListener('click', function () { if (!training) removeParticipant(st.id); });
+    o.g = g;
+    o.dbY = cy;
+    applyPresence(st.name);
+    if (animateIn && !reduceMotion) {
+      g.style.opacity = 0;
+      tween(500, function (k) { g.style.opacity = k; }).then(function () { g.style.opacity = ''; });
+    }
+  }
+
+  /** Joined, worker starting, online, offline: from the participant record. */
+  function applyPresence(name) {
+    var o = L[name]; if (!o) return;
+    var p = o.p;
+    o.g.classList.remove('ghost', 'offline');
+    if (p.status === 'offline') {
+      o.g.classList.add('offline');
+      o.status.textContent = 'Offline';
+    } else if (!p.simulated && !p.workerRunning) {
+      o.g.classList.add('ghost');
+      o.status.textContent = 'Starting worker…';
+    } else {
+      o.link.classList.add('live');
+      if (!training) o.status.textContent = p.simulated ? (dataInJob() ? 'Ready' : 'Simulated') : 'Ready';
+    }
+  }
+
+  function setMachine(name, cls, status) {
+    var o = L[name]; if (!o) return;
+    ['working', 'reading', 'sent', 'failed'].forEach(function (c) { o.g.classList.remove(c); });
+    if (cls) o.g.classList.add(cls);
+    if (status != null) o.status.textContent = status;
+    o.glyph.textContent = cls === 'sent' ? '✓' : cls === 'failed' ? '!' : '';
+    o.glyph.setAttribute('fill', cls === 'sent' ? 'var(--good)' : 'var(--bad)');
+  }
+
+  function tween(ms, step) {
+    if (reduceMotion) { step(1); return Promise.resolve(); }
+    return new Promise(function (resolve) {
+      var t0 = performance.now();
+      function frame(now) {
+        var t = Math.min(1, (now - t0) / ms);
+        step(t);
+        if (t < 1) requestAnimationFrame(frame); else resolve();
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  function travel(path, label, cls, ms) {
+    var g = el('g', { class: 'packet ' + cls }, layer.packets);
+    var w = label.length * 6.6 + 14;
+    el('rect', { x: -w / 2, y: -9, width: w, height: 18 }, g);
+    txt('text', { 'text-anchor': 'middle', y: 3.8 }, label, g);
+    var len = path.getTotalLength();
+    return tween(ms, function (t) {
+      var p = path.getPointAtLength(len * ease(t));
+      g.setAttribute('transform', 'translate(' + p.x + ',' + p.y + ')');
+    }).then(function () { g.remove(); });
+  }
+
+  function localRead(name) {
+    var o = L[name];
+    var dots = [0, 1, 2].map(function () { return el('circle', { cx: 0, cy: o.dbY, r: 2.6, class: 'rowdot' }, o.g); });
+    return tween(600, function (t) {
+      dots.forEach(function (d, i) {
+        var tt = Math.max(0, Math.min(1, t * 1.6 - i * .3));
+        d.setAttribute('cy', o.dbY - tt * 26);
+        d.setAttribute('opacity', tt <= 0 || tt >= 1 ? 0 : 1);
+      });
+    }).then(function () { dots.forEach(function (d) { d.remove(); }); });
+  }
+
+  // ---------- side panel ----------
+  var feedN = 0;
+  function feed(cls, html, meta) {
+    var li = document.createElement('li');
+    li.className = cls;
+    li.innerHTML = '<span class="tm"></span><span class="dot"></span><span class="msg"></span><span class="meta"></span>';
+    li.querySelector('.tm').textContent = clock();
+    li.querySelector('.msg').innerHTML = html;
+    li.querySelector('.meta').textContent = meta || '';
+    li.title = li.querySelector('.msg').textContent;
+    var ul = $('feed');
+    ul.insertBefore(li, ul.firstChild);
+    while (ul.children.length > 120) ul.removeChild(ul.lastChild);
+    feedN++;
+    $('feedCount').textContent = feedN + ' events';
+  }
+
+  function updateTiles() {
+    var last = run.losses[run.losses.length - 1];
+    $('tLoss').textContent = last != null ? Math.round(last).toLocaleString() : '–';
+    $('tJobs').textContent = run.jobs;
+    $('tCost').textContent = run.dcc != null ? (run.jobs * run.dcc) + ' DCC' : '–';
+    drawSpark();
+  }
+
+  function drawSpark() {
+    var s = $('spark'); s.innerHTML = '';
+    var v = run.losses;
+    s.style.display = v.length < 2 ? 'none' : '';
+    if (v.length < 2) return;
+    var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v);
+    var W = 300, H = 36, pad = 3;
+    // high loss at the top, so the line falls as training converges
+    var pts = v.map(function (y, i) {
+      var t = hi === lo ? .5 : (y - lo) / (hi - lo);
+      return [pad + i / (v.length - 1) * (W - 2 * pad), H - pad - t * (H - 2 * pad)];
+    });
+    var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
+    el('path', { d: line + ' L' + pts[pts.length - 1][0] + ' ' + H + ' L' + pts[0][0] + ' ' + H + ' Z', class: 'area' }, s);
+    el('path', { d: line, class: 'line', 'vector-effect': 'non-scaling-stroke' }, s);
+  }
+
+  function renderWeights(beta) {
+    if (!featureNames) return;
+    var box = $('weights');
+    if (!box.querySelector('.w')) {
+      box.innerHTML = '';
+      featureNames.forEach(function (f) {
+        var row = document.createElement('div');
+        row.className = 'w';
+        row.innerHTML = '<span class="n"></span><span class="track"><span class="fill"></span></span><span class="v">0.000</span>';
+        row.querySelector('.n').textContent = FEATURE_LABELS[f] || f;
+        box.appendChild(row);
+      });
+    }
+    if (!beta) return;
+    var w = beta.slice(1);
+    var max = Math.max.apply(null, w.map(Math.abs).concat([1e-9]));
+    box.querySelectorAll('.w').forEach(function (row, j) {
+      var v = w[j], frac = Math.abs(v) / max * 50;
+      var fill = row.querySelector('.fill');
+      fill.className = 'fill ' + (v >= 0 ? 'pos' : 'neg');
+      fill.style.left = (v >= 0 ? 50 : 50 - frac) + '%';
+      fill.style.width = frac + '%';
+      row.querySelector('.v').textContent = (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(3);
+    });
+  }
+
+  function phase(round, html) {
+    $('phaseRound').textContent = round;
+    $('phaseText').innerHTML = html;
+  }
+
+  // ---------- event choreography ----------
+  function enqueue(site, fn) {
+    queues[site] = queues[site].then(fn).catch(function (err) { console.error(err); });
+    return queues[site];
+  }
+  function afterAll(fn) {
+    var all = Promise.all(Object.keys(queues).map(function (k) { return queues[k]; }));
+    gate = all.then(fn).catch(function (err) { console.error(err); });
+    Object.keys(queues).forEach(function (k) { queues[k] = gate; });
+    return gate;
+  }
+
+  function siteEvent(e) {
+    var o = L[e.site]; if (!o) return;
+    var speed = mode === 'sim' ? 1 : 0.8;
+    var stats = e.stage === 'stats';
+    if (e.event === 'deployed') {
+      enqueue(e.site, function () {
+        if (o.round !== e.round) { o.round = e.round; o.distributed = false; }
+        run.jobs += 1; updateTiles();
+        feed('out', (stats ? 'Statistics request to <b>' + esc(nice(e.site)) + '</b>' : 'Weights to <b>' + esc(nice(e.site)) + '</b>') + (e.dataBytes ? ' with its rows' : ''), fmtBytes(e.bytes || 0));
+        setMachine(e.site, null, 'Job queued');
+        return travel(o.downA, stats ? 'stats' : 'β', 'out', 600 * speed);
+      });
+    } else if (e.event === 'distributed') {
+      // Ignore a pick-up reported after this round's result already arrived.
+      enqueue(e.site, function () { if (!o.distributed && o.round === e.round) return toMachine(e, o, speed); });
+    } else if (e.event === 'result') {
+      enqueue(e.site, function () {
+        var pre = o.distributed ? Promise.resolve() : toMachine(e, o, speed);
+        return pre.then(function () {
+          if (stats && e.n != null) { o.n = e.n; o.rows.textContent = e.n.toLocaleString() + ' rows'; }
+          setMachine(e.site, 'working', stats ? 'Sending statistics' : 'Sending gradient');
+          feed('in', '<b>' + esc(nice(e.site)) + '</b> sent ' + (stats ? 'statistics' : 'its gradient'), fmtBytes(e.bytes || 0));
+          return travel(o.up, stats ? 'Σ' : '∇ H', 'in', 900 * speed);
+        }).then(function () { setMachine(e.site, 'sent', stats ? 'Statistics sent' : 'Round ' + e.round + ' sent'); });
+      });
+    } else if (e.event === 'retry') {
+      enqueue(e.site, function () {
+        setMachine(e.site, 'failed', 'Retrying');
+        feed('err', '<b>' + esc(nice(e.site)) + '</b> attempt failed, retrying: ' + esc(e.error));
+      });
+    }
+  }
+
+  function toMachine(e, o, speed) {
+    o.distributed = true;
+    return travel(o.down, e.stage === 'stats' ? 'stats' : 'β', 'out', 700 * speed)
+      .then(function () {
+        setMachine(e.site, 'reading', dataInJob() ? 'Reading rows from job' : 'Reading local rows');
+        if (dataInJob()) feed('local', '<b>' + esc(nice(e.site)) + '</b> read its rows from the job');
+        else feed('local', '<b>' + esc(nice(e.site)) + '</b> read ' + (o.n ? o.n.toLocaleString() + ' rows' : 'its rows') + ' locally', 'kept');
+        return localRead(e.site);
+      })
+      .then(function () {
+        setMachine(e.site, 'working', e.stage === 'stats' ? 'Computing statistics' : 'Computing gradient');
+        return sleep(250);
+      });
+  }
+
+  function handle(e) {
+    if (e.type === 'participant') {
+      participantEvent(e);
+    } else if (e.type === 'idle') {
+      afterAll(function () { training = false; document.body.classList.remove('training'); renderJoin(); if (pendingLayout) relayout(); });
+    } else if (e.type === 'start') {
+      $('results').open && $('results').close();
+      $('reset').hidden = true;
+      training = true;
+      document.body.classList.add('training');
+      pendingLayout = false;
+      setMode(e.mode, true);
+      sites = e.sites.map(function (s) { return participantById(s.id) || s; });
+      maxRounds = e.maxRounds || 10;
+      featureNames = null;
+      run = { jobs: 0, dcc: null, losses: [] };
+      updateTiles();
+      $('feed').innerHTML = ''; feedN = 0;
+      $('weights').innerHTML = '<div class="empty-note">Shown after round 0.</div>';
+      gate = Promise.resolve();
+      buildDiagram();
+      layer.coordStatus.textContent = 'Round 0 · requesting statistics';
+      phase('Round 0', 'Collecting summary statistics from each ' + noun(1) + ' to standardize features.');
+      sites.forEach(function (s) { setMachine(s.name, null, 'Waiting'); });
+      feed('coord', 'Started ' + (e.mode === 'sim' ? 'simulated run' : 'DCP run') + ' with ' + sites.length + ' ' + noun(sites.length) +
+        (e.mode === 'dcpjob' ? ' · ' + esc((config && config.dcpJobGroup) || 'public network') : ''));
+    } else if (e.type === 'cost') {
+      run.dcc = e.dccPerSlice;
+      updateTiles();
+      feed('coord', 'Price ' + e.dccPerSlice + ' DCC per job', '≈' + e.typical + ' DCC');
+    } else if (e.type === 'site') {
+      siteEvent(e);
+    } else if (e.type === 'stats') {
+      afterAll(function () {
+        featureNames = e.featureNames;
+        layer.coord.classList.add('busy');
+        layer.coordStatus.textContent = 'Combining statistics';
+        feed('coord', 'Combined statistics for ' + e.N.toLocaleString() + ' rows' + (e.warnings.length ? ' (' + e.warnings.length + ' warnings)' : ''));
+        renderWeights(null);
+        return sleep(700).then(function () {
+          layer.coord.classList.remove('busy');
+          layer.coordStatus.textContent = 'Round 1 · sending weights';
+          updateTiles();
+          phase('Round 1', 'Each ' + noun(1) + ' computes the <b>gradient and Hessian</b> on its own rows and returns only those.');
+        });
+      });
+    } else if (e.type === 'round') {
+      afterAll(function () {
+        layer.coord.classList.add('busy');
+        layer.coordStatus.textContent = 'Combining ' + sites.length + ' updates · Newton step';
+        return sleep(450).then(function () {
+          renderWeights(e.betaNext || e.beta);
+          run.losses.push(e.loss);
+          updateTiles();
+          feed('coord', 'Round ' + e.round + ' complete' + (e.rejected ? ' (step damped)' : ''), 'loss ' + Math.round(e.loss).toLocaleString());
+          return sleep(450);
+        }).then(function () {
+          layer.coord.classList.remove('busy');
+          if (e.converged) {
+            layer.coordStatus.textContent = 'Converged after ' + e.round + ' rounds';
+            phase('Converged', 'The weights stopped changing. Scoring the model…');
+          } else {
+            layer.coordStatus.textContent = 'Round ' + (e.round + 1) + ' · sending weights';
+            updateTiles();
+            phase('Round ' + (e.round + 1), 'New weights sent. Each ' + noun(1) + ' recomputes its <b>gradient and Hessian</b>.');
+          }
+        });
+      });
+    } else if (e.type === 'done') {
+      afterAll(function () {
+        phase('Done', 'Converged in <b>' + e.rounds + ' rounds</b>' + (e.mode === 'dcpjob' ? '.' : '. Training rows never left their ' + noun(2) + '.'));
+        layer.coordStatus.textContent = 'Model ready';
+        sites.forEach(function (s) { setMachine(s.name, 'sent', 'Done'); });
+        feed('coord', 'Model trained · test AUC ' + e.federated.auc.toFixed(3));
+        return sleep(600).then(function () { showResults(e); $('train').disabled = false; $('reset').hidden = false; });
+      });
+    } else if (e.type === 'error') {
+      afterAll(function () {
+        phase('Stopped', '<span style="color:var(--bad)">' + esc(e.message) + '</span>');
+        feed('err', esc(e.message));
+        layer.coord && layer.coord.classList.remove('busy');
+        sites.forEach(function (s) { var o = L[s.name]; if (o && !o.g.classList.contains('failed')) setMachine(s.name, null, 'Stopped'); });
+        $('train').disabled = false;
+        $('reset').hidden = false;
+      });
+    }
+  }
+
+  // ---------- participants (machines joining and leaving) ----------
+  var participants = [];   // everyone the coordinator knows, all modes
+  var training = false;
+  var pendingLayout = false;
+  var minParticipants = 2;
+
+  function participantById(id) {
+    for (var i = 0; i < participants.length; i++) if (participants[i].id === id) return participants[i];
+    return null;
+  }
+  function modeParticipants() {
+    return participants.filter(function (p) { return p.simulated === (mode !== 'dcp'); });
+  }
+
+  /** Redraw the machines for the current mode. New names fade in. */
+  function relayout(appearNames) {
+    pendingLayout = false;
+    sites = modeParticipants();
+    buildDiagram({ appear: appearNames || [] });
+    updateReady();
+    renderJoin();
+  }
+
+  function updateReady() {
+    if (training) return;
+    var online = sites.filter(function (p) { return p.status === 'online'; }).length;
+    if (online < minParticipants) {
+      phase('Ready', mode === 'dcp'
+        ? 'Waiting for machines. At least <b>' + minParticipants + '</b> must be online to train.'
+        : 'Add at least <b>' + minParticipants + '</b> ' + noun(2) + ' to train.');
+    } else {
+      phase('Ready', '<b>' + online + ' ' + noun(online) + '</b> online. ' + (dataInJob()
+        ? 'Rows are sent inside each DCP job for this demo; in production they stay on each site.'
+        : 'Each holds its own data.'));
+    }
+    if (layer.coordStatus) layer.coordStatus.textContent = idleStatus();
+  }
+
+  function participantEvent(e) {
+    var p = e.participant;
+    var existing = participantById(p.id);
+    if (e.action === 'left') participants = participants.filter(function (x) { return x.id !== p.id; });
+    else if (existing) participants[participants.indexOf(existing)] = p;
+    else participants.push(p);
+
+    var inMode = p.simulated === (mode !== 'dcp');
+    if (inMode) {
+      if (e.action === 'joined') feed('join', '<b>' + esc(nice(p.name)) + '</b> joined' + (p.simulated ? '' : ' from ' + esc(p.device)), p.rows.toLocaleString() + ' rows');
+      if (e.action === 'left') feed('err', '<b>' + esc(nice(p.name)) + '</b> left');
+      if (e.action === 'offline') feed('err', '<b>' + esc(nice(p.name)) + '</b> went offline');
+    }
+    if (!inMode) { renderJoin(); return; }
+    if (training) {
+      var o = L[p.name];
+      if (o && o.p.id === p.id) { o.p = p; if (e.action !== 'left') applyPresence(p.name); else setMachine(p.name, 'failed', 'Left'); }
+      if (e.action === 'joined' || e.action === 'left') pendingLayout = true;
+      renderJoin();
+      return;
+    }
+    if (e.action === 'updated' || e.action === 'offline') {
+      var n = L[p.name];
+      if (n && n.p.id === p.id) {
+        n.p = p;
+        sites = modeParticipants();
+        applyPresence(p.name); updateReady(); renderJoin(); return;
+      }
+    }
+    relayout(e.action === 'joined' ? [p.name] : []);
+  }
+
+  function removeParticipant(id) {
+    fetch('/api/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id }) });
+  }
+
+  // ---------- join panel ----------
+  var joinIndex = 0;
+  function renderJoin() {
+    if (!config) return;
+    var urls = config.joinUrls || [];
+    var url = urls[Math.min(joinIndex, urls.length - 1)] || '';
+    $('joinLink').textContent = url.replace(/^https?:\/\//, '').replace(/\?t=.*/, '');
+    $('joinLink').href = url;
+    $('joinLink').title = url;
+    $('joinPick').hidden = urls.length < 2;
+    var qr = $('qr');
+    if (window.qrcode && url && qr.dataset.url !== url) {
+      var q = window.qrcode(0, 'M');
+      q.addData(url);
+      q.make();
+      qr.innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+      qr.dataset.url = url;
+    } else if (!window.qrcode) {
+      qr.innerHTML = '<span>QR needs internet. Use the link.</span>';
+    }
+    var online = modeParticipants().filter(function (p) { return p.status === 'online'; }).length;
+    var s = config.slots || { total: 0, used: 0 };
+    var real = participants.filter(function (p) { return !p.simulated; }).length;
+    $('joinCount').textContent = mode === 'dcp'
+      ? real + ' joined' + (s.total ? ' · ' + Math.max(0, s.total - s.used) + ' of ' + s.total + ' groups free' : s.shared ? ' · shared group' : ' · no compute groups')
+      : online + ' ' + noun(online) + (dataInJob() ? ' · data sent in jobs' : ' · simulated');
+    $('simAdd').hidden = mode === 'dcp';
+    $('simAdd').textContent = dataInJob() ? '+ Add state' : '+ Add machine';
+    $('joinPending').textContent = training && pendingLayout ? 'Changes apply after this run' : '';
+    $('train').disabled = training || online < minParticipants;
+  }
+  $('joinCopy').onclick = function () {
+    var url = $('joinLink').href;
+    var done = function () { $('joinCopy').textContent = 'Copied'; setTimeout(function () { $('joinCopy').textContent = 'Copy link'; }, 1400); };
+    if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, done); else done();
+  };
+  $('joinPick').onclick = function () {
+    joinIndex = (joinIndex + 1) % (config.joinUrls || [1]).length;
+    $('qr').dataset.url = '';
+    renderJoin();
+  };
+  $('qrlib').addEventListener('load', function () { $('qr').dataset.url = ''; renderJoin(); });
+  $('simAdd').onclick = function () {
+    fetch('/api/sim/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  };
+
+  // ---------- results popup ----------
+  function showResults(e) {
+    var where = e.mode === 'sim' ? 'Simulated' : 'DCP';
+    $('rTitle').textContent = (e.converged ? 'Converged in ' : 'Stopped after ') + e.rounds + ' rounds across ' + sites.length + ' ' + noun(sites.length);
+    $('rSub').textContent = where + ' run, ' + (e.durationMs / 1000).toFixed(1) + ' s. ' + (e.mode === 'dcpjob'
+      ? 'For this demo each state’s rows were sent inside its jobs; in production they stay on each site and only model numbers move.'
+      : 'No training row left its machine; only model numbers moved.');
+    $('rAucSub').textContent = 'Test AUC on ' + (e.testRows || 0).toLocaleString() + ' held-out rows (higher is better)';
+
+    var rows = e.localOnly.map(function (l) { return { name: title(l.site), sub: l.n.toLocaleString(), auc: l.auc, fed: false }; });
+    rows.sort(function (a, b) { return b.auc - a.auc; });
+    rows.unshift({ name: 'Federated', sub: (e.run.rows || 0).toLocaleString(), auc: e.federated.auc, fed: true });
+    var min = Math.min.apply(null, rows.map(function (r) { return r.auc; })) - 0.03;
+    var max = Math.max.apply(null, rows.map(function (r) { return r.auc; })) + 0.005;
+    var bars = $('rBars'); bars.innerHTML = '';
+    rows.forEach(function (r, i) {
+      var div = document.createElement('div');
+      div.className = 'bar-row' + (r.fed ? ' fed' : '');
+      div.innerHTML = '<div class="n"></div><div class="bar"><div></div></div><div class="v"></div>';
+      div.querySelector('.n').textContent = r.fed ? 'Federated model' : r.name + ' alone';
+      div.querySelector('.n').title = r.sub + ' training rows';
+      div.querySelector('.v').textContent = r.auc.toFixed(3);
+      bars.appendChild(div);
+      setTimeout(function () { div.querySelector('.bar > div').style.width = ((r.auc - min) / (max - min) * 100) + '%'; }, 120 + i * 80);
+    });
+    if (e.localOnly.length) {
+      var worst = e.localOnly.reduce(function (a, b) { return a.auc < b.auc ? a : b; });
+      $('rLift').innerHTML = esc(title(worst.site)) + ' (' + worst.n.toLocaleString() + ' rows) goes from ' + worst.auc.toFixed(3) + ' alone to <b>' + e.federated.auc.toFixed(3) + '</b> federated.';
+    } else {
+      $('rLift').textContent = 'Run node demo/baselines.js to add the each-state-alone comparison.';
+    }
+
+    if (e.reference) {
+      $('rDiff').textContent = e.reference.maxDiff.toExponential(1);
+      $('rDiffL').textContent = 'Largest coefficient difference: ' + (e.reference.maxDiff < 1e-6 ? 'the same model to better than 1e-6.' : 'within ' + e.reference.maxDiff.toExponential(0) + '.');
+      $('rPooledAuc').innerHTML = e.reference.auc != null ? 'Test AUC: federated <b>' + e.federated.auc.toFixed(4) + '</b>, pooled <b>' + Number(e.reference.auc).toFixed(4) + '</b>' : '';
+      var names = ['intercept'].concat(e.featureNames);
+      var fed = [e.intercept].concat(e.coefficients);
+      var ref = [e.reference.intercept].concat(e.reference.coefficients);
+      var t = '<table><tr><th>Feature</th><th>Federated</th><th>Pooled</th></tr>';
+      names.forEach(function (n, j) { t += '<tr><td>' + esc(FEATURE_LABELS[n] || n) + '</td><td>' + fed[j].toFixed(5) + '</td><td>' + ref[j].toFixed(5) + '</td></tr>'; });
+      $('rCoefs').innerHTML = t + '</table>';
+    } else {
+      $('rDiff').innerHTML = '<span style="font-size:18px;color:var(--muted)">Not compared</span>';
+      $('rPooledAuc').textContent = '';
+      $('rDiffL').textContent = e.referenceNote || 'No scikit-learn reference for this run.';
+      $('rCoefs').innerHTML = '';
+    }
+
+    var r = e.run;
+    var moved = r.bytesSent + r.bytesReceived;
+    $('rModeSub').textContent = e.mode === 'dcp' ? 'DCP, one job per machine per round' : e.mode === 'dcpjob' ? 'DCP, rows sent in each job' : 'Simulation on this computer';
+    var stats = [
+      ['Rounds', e.rounds + ' + round 0'],
+      ['Wall time', (e.durationMs / 1000).toFixed(1) + ' s'],
+      ['DCP jobs', r.slices],
+      [e.mode !== 'sim' ? 'Cost' : 'Cost on DCP', (r.dccPerSlice ? r.slices * r.dccPerSlice : r.slices) + ' DCC'],
+      [r.dataBytesSent ? 'Sent (rows + model)' : 'Model numbers sent', fmtBytes(r.bytesSent)],
+      ['Aggregates received', fmtBytes(r.bytesReceived)]
+    ];
+    var html = stats.map(function (s) { return '<div class="stat"><div class="v">' + esc(s[1]) + '</div><div class="l">' + esc(s[0]) + '</div></div>'; }).join('');
+    if (r.rawBytes && !r.dataBytesSent) {
+      var pct = Math.min(100, moved / (moved + r.rawBytes) * 100);
+      html += '<div class="stat wide"><div class="v" style="color:var(--data)">' + r.rows.toLocaleString() + ' rows · ' + fmtBytes(r.rawBytes) + '</div>' +
+        '<div class="l">stayed on the machines; ' + fmtBytes(moved) + ' of model numbers moved</div>' +
+        '<div class="ratio" title="network traffic vs raw data"><div style="width:' + pct + '%"></div></div></div>';
+    }
+    $('rStats').innerHTML = html;
+    var dev = Object.keys(r.devices || {});
+    $('rDevices').innerHTML = dev.length ? '<div style="margin-bottom:4px;color:var(--faint)">Computed on</div>' + dev.map(function (k) {
+      return '<div><span>' + esc(nice(k)) + '</span><span>' + esc(r.devices[k]) + '</span></div>';
+    }).join('') : '';
+    $('rNote').textContent = 'Each-state-alone scores were computed offline (demo/baselines.js). The federated model is scored live on the coordinator’s held-out test set.';
+    $('results').showModal();
+  }
+  $('rClose').onclick = function () { $('results').close(); };
+
+  /** Clear the last run from the view and go back to Ready. Only the view: machines stay joined. */
+  function resetView() {
+    if (training) return;
+    $('results').open && $('results').close();
+    run = { jobs: 0, dcc: null, losses: [] };
+    featureNames = null;
+    updateTiles();
+    $('feed').innerHTML = ''; feedN = 0; $('feedCount').textContent = '';
+    $('weights').innerHTML = '<div class="empty-note">Shown after round 0.</div>';
+    showProblem('');
+    $('reset').hidden = true;
+    relayout(); // fresh diagram: machines back to Ready, status bar back to Ready
+  }
+  $('reset').onclick = resetView;
+  $('rAgain').onclick = function () { $('results').close(); $('train').click(); };
+
+  // ---------- modes, start, passwords ----------
+  function setMode(m, fromRun) {
+    var changed = mode !== m;
+    mode = m;
+    document.querySelectorAll('.seg button').forEach(function (b) { b.classList.toggle('on', b.dataset.mode === m); });
+    if (!training) { run = { jobs: 0, dcc: null, losses: [] }; updateTiles(); }
+    showProblem();
+    if (!fromRun && (changed || !layer.coord)) relayout();
+  }
+  document.querySelectorAll('.seg button').forEach(function (b) {
+    b.onclick = function () { if (!training) setMode(b.dataset.mode); };
+  });
+  function idleStatus() {
+    return training ? 'Starting' : 'Idle · ' + sites.length + ' ' + noun(sites.length) + ' connected';
+  }
+
+  function showProblem(msg) {
+    var p = msg || (mode === 'dcp' && config && config.dcpProblem);
+    $('banner').textContent = p || '';
+    $('banner').classList.toggle('show', Boolean(p));
+  }
+
+  function startTraining(body) {
+    return fetch('/train?mode=' + mode, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(function (r) {
+      if (r.ok) return { ok: true };
+      return r.json().catch(function () { return { error: 'Could not start (' + r.status + ')' }; })
+        .then(function (j) { return { ok: false, status: r.status, error: j.error, keystore: j.keystore }; });
+    });
+  }
+
+  var need = { identity: false, payment: false };
+  function syncSame() { $('pwPayWrap').style.display = $('pwSame').checked || !need.payment ? 'none' : ''; }
+  $('pwSame').onchange = syncSame;
+  function askPasswords(n) {
+    need = n;
+    $('pwIdWrap').style.display = n.identity ? '' : 'none';
+    $('pwSameWrap').style.display = n.identity && n.payment ? '' : 'none';
+    $('pwSame').checked = false;
+    $('pwId').value = ''; $('pwPay').value = '';
+    $('pwId').classList.remove('bad'); $('pwPay').classList.remove('bad');
+    $('pwMsg').textContent = '';
+    syncSame();
+    $('pw').showModal();
+    (n.identity ? $('pwId') : $('pwPay')).focus();
+  }
+  $('pwCancel').onclick = function () { $('pw').close(); $('train').disabled = false; };
+  $('pw').addEventListener('cancel', function () { $('train').disabled = false; });
+  $('pwForm').onsubmit = function (ev) {
+    ev.preventDefault();
+    var idPw = $('pwId').value;
+    var payPw = (!need.identity || !$('pwSame').checked) ? $('pwPay').value : idPw;
+    $('pwGo').disabled = true;
+    $('pwMsg').textContent = 'Unlocking…';
+    startTraining({ identityPassword: idPw, paymentPassword: payPw }).then(function (r) {
+      $('pwGo').disabled = false;
+      $('pwId').value = ''; $('pwPay').value = '';
+      if (r.ok) { $('pw').close(); return; }
+      $('pwMsg').textContent = r.error || 'Could not unlock';
+      if (r.keystore && r.keystore.indexOf('bank') === 0) { $('pwSame').checked = false; syncSame(); $('pwPay').classList.add('bad'); $('pwPay').focus(); }
+      else { $('pwId').classList.add('bad'); $('pwId').focus(); }
+    }, function () {
+      $('pwGo').disabled = false;
+      $('pwMsg').textContent = 'Could not reach the demo server';
+    });
+  };
+
+  function started(r) {
+    if (r.ok) { showProblem(''); return; }
+    $('train').disabled = false;
+    showProblem(r.error || 'Could not start');
+  }
+
+  $('train').onclick = function () {
+    $('train').disabled = true;
+    if (mode === 'sim') return startTraining().then(started);
+    fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
+      config = c;
+      if (mode === 'dcp' && c.dcpProblem) { showProblem(); $('train').disabled = false; return; }
+      var n = c.dcpPasswords || { identity: false, payment: false };
+      if (n.identity || n.payment) return askPasswords(n);
+      startTraining().then(started);
+    });
+  };
+
+  fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
+    config = c;
+    participants = c.participants || [];
+    minParticipants = c.minParticipants || 2;
+    training = Boolean(c.running);
+    mode = null;
+    setMode(c.defaultMode);
+    if (training) { document.body.classList.add('training'); phase('Running', 'A training run is in progress. The view picks up from the next event.'); }
+  });
+  // Keep the compute-group count in the join panel current as machines come and go.
+  setInterval(function () {
+    if (document.hidden || !config) return;
+    fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
+      config.slots = c.slots; config.joinUrls = c.joinUrls; config.dcpProblem = c.dcpProblem;
+      renderJoin();
+    }).catch(function () {});
+  }, 5000);
+  // Reload when the server restarts (new bootId after the event stream reconnects) or a dashboard
+  // file changes ('reload' event). During a run on this server, wait for it to finish.
+  var bootId = null, reloadWhenIdle = false;
+  function reloadSoon() { if (training) reloadWhenIdle = true; else location.reload(); }
+  var events = new EventSource('/events');
+  events.onopen = function () {
+    fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
+      if (bootId && c.bootId !== bootId) { training = false; location.reload(); return; }
+      bootId = c.bootId;
+    }).catch(function () {});
+  };
+  events.onmessage = function (m) {
+    var e = JSON.parse(m.data);
+    if (e.type === 'reload') return reloadSoon();
+    handle(e);
+    if (e.type === 'idle' && reloadWhenIdle) afterAll(function () { location.reload(); });
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "name": "federated-learning-dcp",
+  "version": "0.1.0-dev",
+  "description": "Federated learning on the Distributive Compute Platform (DCP). Proof of concept by QMIND x Distributive.",
+  "main": "src/index.js",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/",
+    "demo": "node demo/run.js",
+    "demo:dev": "node --watch demo/run.js",
+    "demo:dcp": "node demo/run.js --dcp",
+    "demo:dcp-job": "node demo/run.js --dcp-job",
+    "demo:baselines": "node demo/baselines.js",
+    "dcp:hello": "node demo/hello-dcp.js",
+    "demo:agent": "node demo/agent.js",
+    "demo:worker": "node demo/worker.js",
+    "demo:check-groups": "node demo/check-groups.js"
+  },
+  "dependencies": {
+    "dcp-client": "5.9.0"
+  }
+}

@@ -11,6 +11,9 @@ status to `Resolved` and link the decision record in `specs/decisions/`.
 
 Status values: `Open`, `In discussion`, `Resolved`.
 
+Questions that need an answer from Distributive are collected in
+[questions-for-alex.md](questions-for-alex.md), and linked back to the IDs below.
+
 | ID | Question | Area | Raised by | Owner | Status | Resolution / decision |
 |---|---|---|---|---|---|---|
 | OQ1 | Who is the second logistic regression team member? | Team | Repo setup | TODO | Open | |

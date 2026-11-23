@@ -20,6 +20,16 @@ The current phase produces markdown specs only.
 
 GitHub org: QMind Distributed (TODO: confirm org name — see `specs/shared/open-questions.md`).
 
+## Showcase demo and compute groups
+
+The logistic regression showcase demo lives in [demo/](demo/README.md). Laptops join
+from a link or QR code, and their rows stay on each laptop. A real DCP run needs **one DCP
+compute group for each laptop that joins**, created in the DCP portal and listed in
+`demo/devices.json`. Without groups, only Simulation mode can train. The reason is in
+[demo/README.md](demo/README.md#why-one-compute-group-per-laptop), and the open questions
+for Distributive are in [questions-for-alex.md](specs/shared/questions-for-alex.md). What each DCP
+key is and where to put it: [demo/dcp-credentials.md](demo/dcp-credentials.md).
+
 ## Repository layout
 
 ```
@@ -32,6 +42,7 @@ specs/
     test-plan.md                  Shared test strategy
     dependencies.md               Dependency policy and approved dependency table
     open-questions.md             Unresolved questions for all tracks
+    questions-for-alex.md         Questions to raise with Distributive (Alex)
   logistic-regression/            Logistic regression track (Newton-style + FedAvg)
     summary.md
     implementation-plan.md
