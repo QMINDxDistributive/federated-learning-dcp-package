@@ -56,9 +56,9 @@ Status values: `Skeleton` → `Draft` → `In review` → `Approved`. See `CONTR
 | `specs/shared/test-plan.md` | Everyone | Skeleton |
 | `specs/shared/dependencies.md` | Everyone | Skeleton |
 | `specs/shared/open-questions.md` | Everyone | Skeleton |
-| `specs/logistic-regression/summary.md` | Theo, TODO: second team member | Skeleton |
-| `specs/logistic-regression/implementation-plan.md` | Theo, TODO: second team member | Skeleton |
-| `specs/logistic-regression/test-plan.md` | Theo, TODO: second team member | Skeleton |
+| `specs/logistic-regression/summary.md` | Theo, TODO: second team member | Draft |
+| `specs/logistic-regression/implementation-plan.md` | Theo, TODO: second team member | Draft |
+| `specs/logistic-regression/test-plan.md` | Theo, TODO: second team member | Draft |
 | `specs/random-forest/summary.md` | Nate, Mohsan, Ivan | Skeleton |
 | `specs/random-forest/implementation-plan.md` | Nate, Mohsan, Ivan | Skeleton |
 | `specs/random-forest/test-plan.md` | Nate, Mohsan, Ivan | Skeleton |
