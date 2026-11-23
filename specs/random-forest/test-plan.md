@@ -29,9 +29,9 @@
 
 | ID | Test | Requirements | Pass condition |
 |---|---|---|---|
-| RF-T9 | Compare combined, pooled, and site-only forests on one holdout. Include unequal site sizes and skewed labels. Use comparable total tree budgets for combined and pooled models. | R1 | Report ROC AUC from vote fractions and accuracy from class predictions. Record split, seed, and model size. Meet the agreed quality threshold. |
+| RF-T9 | Compare combined, pooled, and site-only forests on one holdout. Include unequal site sizes and skewed labels. Use comparable total tree budgets for combined and pooled models. | R1 | Report ROC AUC from vote fractions and accuracy from class predictions. Record split, seed, model size, and the predicted and actual class balance. Meet the agreed quality threshold. |
 | RF-T10 | Measure runtime, result bytes per site, and model size at the proposed limits. | R2, R3, R5 | Runs fit the agreed budgets. Settings outside those limits fail before dispatch. |
-| RF-T11 | Compare equal-site voting against sample-size row-weighted voting on heterogeneous site distributions. | R1, R2 | Weighted voting prevents small-site majority skew and aligns with pooled baseline accuracy. |
+| RF-T11 | Compare equal-site voting against sample-size row-weighted voting on heterogeneous site distributions. | R1, R2 | Report ROC AUC and accuracy for both rules next to the pooled baseline, per site and overall, on the same holdout and seed. The results feed the weighting decision in OQ-RF1. Neither rule is assumed to win. |
 
 Use synthetic fixtures for repeatable training and recovery tests. The showcase BRFSS split is a candidate for RF-T9. [Showcase plan](https://docs.google.com/document/d/181NJW-Uq353eHQrRfpFzJeYJSchxmJzSlqJQ2lfOs1c/edit?tab=t.0)
 

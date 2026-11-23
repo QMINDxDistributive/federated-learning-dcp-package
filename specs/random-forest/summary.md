@@ -22,12 +22,16 @@ The proof of concept uses public or synthetic data. Regression, multiclass class
 ## Functional requirements
 
 This track maps directly to the shared requirements:
-- **R1 (DCP Execution):** Slices distribute tree batch training across DCP worker nodes.
-- **R2 (Coordinator Interface):** Clean coordinator dispatch and aggregation of site tree batches.
-- **R5 (Minimal Inference Dependencies):** Serialized JSON format allows inference using only standard numeric comparisons without DCP dependencies.
-- **R6 (Data Locality):** In remote data mode, raw training rows stay on site machines; workers transmit only trained tree structures.
-- **R8 (Partial Participation):** Builds a valid forest from responding sites if the minimum site threshold is met.
-- **R9 (Slice Recovery):** Completed, validated tree batches are saved and reused on retry.
+- **R1 (Federated training):** Each site trains a tree batch on its own rows, and the coordinator combines the batches into one forest.
+- **R2 (Hyperparameters):** The coordinator accepts tree count, depth, leaf size, features per split, seed, and minimum site count, and validates them before dispatch.
+- **R3 (DCP):** One DCP job runs one slice per site.
+- **R4 (Primary API):** The API takes hyperparameters and returns the trained forest as versioned JSON.
+- **R5 (Minimal inference dependencies):** Inference needs only JSON and numeric comparisons, with no DCP or package dependencies.
+- **R6 (Data locality):** In remote data mode, raw rows stay on site machines and workers return only tree structures. Deferred in slice-input mode.
+- **R7 (Remote data and discrete jobs):** Remote data mode loads rows on the site's worker. Deferred in slice-input mode.
+- **R8 (Partial participation):** Builds a valid forest from responding sites if the minimum site threshold is met.
+- **R9 (Slice recovery):** Completed, validated tree batches are saved and reused on retry.
+- **R10 (Worker script):** Site workers join the correct compute group and host local data in remote data mode.
 
 ## What needs review
 

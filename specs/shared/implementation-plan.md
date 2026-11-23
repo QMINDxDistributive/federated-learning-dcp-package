@@ -22,9 +22,35 @@ DCP worker, data host)? Add a diagram once agreed._
 
 _Which modules are shared, and which belong to a model track? What does each own?_
 
+This layout follows the code on `logistic-regression/demo-spike`. RF files are planned.
+
+```
+package.json             exact-pinned dependencies, npm scripts
+src/
+  index.js               public exports for both tracks
+  runners/               shared: local runner and DCP runners
+  lr/                    logistic regression track
+  rf/                    random forest track (planned)
+test/                    node --test suites and fixtures
+tools/                   data preparation and reference scripts (Python, not shipped)
+demo/                    demo app, site agent, dashboard (not part of the package API)
+fl-agent.js              standalone site agent, Node built-ins only (decision 0004)
+specs/                   specs and decision records
+```
+
 | Module | Responsibility | Runs where | Owner |
 |---|---|---|---|
-| TODO | TODO | TODO | TODO |
+| `src/index.js` | Public exports. Loads the DCP runner lazily so local use needs no `dcp-client`. | User machine | TODO |
+| `src/runners/local.js` | Runs work functions in-process for tests and local training. | User machine | TODO |
+| `src/runners/dcp.js`, `dcpInit.js`, `dcpJob.js` | DCP setup, job submission, slice results. Only modules that load `dcp-client`. | Coordinator machine | TODO |
+| `src/lr/*` | Logistic regression: settings, coordinator, work function, model. [LR plan](../logistic-regression/implementation-plan.md) | Coordinator and DCP workers | LR track |
+| `src/rf/hyperparameters.js` | Validates RF settings before dispatch. | Coordinator machine | RF track |
+| `src/rf/train.js` | RF public entry point. | Coordinator machine | RF track |
+| `src/rf/coordinator.js` | Dispatch, batch saving and reuse, minimum sites, forest assembly. | Coordinator machine | RF track |
+| `src/rf/workFunction.js` | Self-contained site training, including the seeded random number generator. | DCP worker or local runner | RF track |
+| `src/rf/model.js` | Forest JSON export, validation, and prediction with no dependencies. | Anywhere | RF track |
+
+Each track's `workFunction.js` is sent to workers as source text, so it must be self-contained: no `require()` and no helpers outside the function. [RF file layout](../random-forest/implementation-plan.md#file-layout)
 
 ### Public API
 
@@ -113,7 +139,8 @@ detect and reuse them? When are they cleaned up? Do saved results contain anythi
 _Which dependencies do shared components need? Every dependency must be added to
 [dependencies.md](dependencies.md) and approved._
 
-- TODO
+- `dcp-client`, pinned to exactly `5.9.0`, used only by the DCP runners and the demo. Proposed in decision 0006 on `logistic-regression/demo-spike`.
+- Work functions and model inference use no packages.
 
 ## Work breakdown
 
