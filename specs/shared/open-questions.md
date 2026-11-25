@@ -4,7 +4,7 @@
 |---|---|
 | Owner | Everyone |
 | Status | Skeleton |
-| Last updated | 2026-11-23 |
+| Last updated | 2026-11-25 |
 
 Add anything unknown here instead of guessing. When a question is resolved, set its
 status to `Resolved` and link the decision record in `specs/decisions/`.
@@ -24,9 +24,9 @@ Questions that need an answer from Distributive are collected in
 | OQ6 | How will the package be distributed publicly (package registry, source only, other)? | Shared | Repo setup | TODO | Open | |
 | OQ7 | What are the DCP worker runtime constraints (e.g. WASM, available APIs, memory, slice time limits)? | DCP | Repo setup | TODO | Open | |
 | OQ8 | What does DCP provide for local or mocked testing without a live network? | DCP / testing | Repo setup | TODO | Open | |
-| OQ9 | Who creates and manages compute groups, and how are workers authorized to join them? | DCP | Repo setup | TODO | Open | |
+| OQ9 | Who creates and manages compute groups, and how are workers authorized to join them? | DCP | Repo setup | TODO | In discussion | Alex, 2026-11-25: in dev, assume the compute groups we need exist. In production, Distributive would either set them up in advance or add a feature for it. Not a concern for the initial library. Compute groups are meant to be the trust mechanism for which work runs. See A1, A3, A11 in [questions-for-alex.md](questions-for-alex.md) |
 | OQ10 | What is the minimum worker participation for a training run to count as successful (R8)? | Shared | Repo setup | TODO | Open | |
-| OQ11 | Where are successful slice results persisted (R9), and who can access them? | Shared | Repo setup | TODO | Open | |
+| OQ11 | Where are successful slice results persisted (R9), and who can access them? | Shared | Repo setup | TODO | In discussion | Alex, 2026-11-25: DCP sees results along the way unless the job uses Remote results, which sends them to a secure third party. Storage and access still to decide. See A18 in [questions-for-alex.md](questions-for-alex.md) |
 | OQ12 | Alex's email (2026-11-08) says v0 should not use remote data, so site data is sent over DCP. R6 and R7 still say training data never travels over DCP and that remote data is used. Do we rewrite R6/R7 for v0, and does per-site compute-group routing still matter for v0? | Shared / DCP | Team meeting 2026-11-08 | Theo | In discussion | [0001](../decisions/0001-v0-1-send-data-with-slices.md) (Proposed): v0.1 sends data with slices; R6/R7 deferred to the remote data release |
 | OQ13 | Which release adds remote data (v0.2 or later), and does the DCP loop ship in v0.1 or v0.2? (Alex: the loop "could even wait for v0.2".) | Shared / planning | Alex email | Theo | Open | |
 | OQ14 | How does a user choose the model type, and do both tracks share one `train` entry point? Today `src/index.js` exports only the logistic regression `train`. | Shared / API | Shared plan merge | TODO | Open | See [Public API](implementation-plan.md#public-api) |
@@ -34,7 +34,7 @@ Questions that need an answer from Distributive are collected in
 | OQ-LR2 | Alex's outcome metrics include continuous scores (DAPSA, PASI). Does this track also need linear regression, or is that a separate track? | Logistic regression | Research summary | Theo | Resolved | Stretch goal after v0.1 ([0003](../decisions/0003-lr-scope-site-rules-class-weights.md)) |
 | OQ-LR3 | Default `method`: FedAvg first (2026-11-04 plan) or Newton-style? Decide after measuring round latency (test LR-E3). | Logistic regression | LR draft | Theo | Resolved | Newton-style ([0002](../decisions/0002-newton-default-method.md)) |
 | OQ-LR4 | Minimum rows per site (`minSiteRows`), and should it scale with the number of features d (e.g. Newton requires n_k > d(d+1)/2)? | Logistic regression | LR draft | Theo | Resolved | `minSiteRows: "auto"` = max(50, numbers sent per round), plus `siteSizeCheck` ([0003](../decisions/0003-lr-scope-site-rules-class-weights.md)) |
-| OQ-LR5 | Is sharing a site's Hessian (Newton-style) acceptable for v0, given that it reveals more than coefficients? | Logistic regression / privacy | Research summary | Theo | Resolved | Yes for v0.1 public data; revisit before real patient data ([0003](../decisions/0003-lr-scope-site-rules-class-weights.md)) |
+| OQ-LR5 | Is sharing a site's Hessian (Newton-style) acceptable for v0, given that it reveals more than coefficients? | Logistic regression / privacy | Research summary | Theo | Resolved | Yes for v0.1 public data; revisit before real patient data ([0003](../decisions/0003-lr-scope-site-rules-class-weights.md)). Alex, 2026-11-25: aggregate stats may be fine, so send them over the wire for now. DCP can see results unless Remote results is used. Privacy review with Alex planned for the week after 2026-11-25 (A18) |
 | OQ-LR6 | When a site is still missing after retries, should a Newton-style round proceed without it (result no longer equals pooled training) or wait/abort? | Logistic regression | LR draft | Theo | Resolved | Retry, then proceed with responders and mark the round partial ([0003](../decisions/0003-lr-scope-site-rules-class-weights.md)) |
 | OQ-LR7 | How is real hospital data harmonized before training: a shared data template, units, category coding, missing values? (Applies to both tracks. See [harmonization](implementation-plan.md#data-harmonization).) | Shared / data | Theo, 2026-11-14 | Theo | Open | |
 | OQ-RF1 | Should the first forest use site-trained trees and equal votes per tree with a fixed budget per site? When should site sample size affect a site's voting weight? | Random forest | RF draft | RF track | In discussion | [Proposed decision 0005](../decisions/0005-rf-site-trained-trees.md) |

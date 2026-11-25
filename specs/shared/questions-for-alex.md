@@ -4,7 +4,7 @@
 |---|---|
 | Owner | Theo |
 | Status | Open |
-| Last updated | 2026-11-19 |
+| Last updated | 2026-11-25 |
 
 Questions to raise with Alex Salgo at Distributive. Each one says why we are asking and what
 it would change. Where a question is also tracked in [open-questions.md](open-questions.md),
@@ -63,11 +63,11 @@ have found is the compute group, so each site needs its own group (see
 
 | # | Question | Why it matters | Related | Status | Answer |
 |---|---|---|---|---|---|
-| A1 | Is there an API to create compute groups and their join/attach credentials from code? `dcp-client` 5.9 has none that we could find. | Today groups are made by hand in the portal, so the demo needs a pre-made pool and hospitals need a manual onboarding step. An API would let the coordinator create a group when a site joins. | OQ9 | Answered | 2026-11-17: we cannot create groups; Distributive created `queens` (shared) and `qmind-fl-1` to `qmind-fl-5` for us. A creation API is still open. |
+| A1 | Is there an API to create compute groups and their join/attach credentials from code? `dcp-client` 5.9 has none that we could find. | Today groups are made by hand in the portal, so the demo needs a pre-made pool and hospitals need a manual onboarding step. An API would let the coordinator create a group when a site joins. | OQ9 | Answered | 2026-11-17: we cannot create groups; Distributive created `queens` (shared) and `qmind-fl-1` to `qmind-fl-5` for us. A creation API is still open. 2026-11-25: in production, Distributive would either set groups up in advance or add a feature for it. Not a concern for the initial library; in dev, assume the groups we need exist. |
 | A2 | Can a job, or a single slice, be sent to one specific worker (e.g. by worker ID or identity) without a compute group per site? | If yes, we can drop the per-site compute groups entirely. | OQ9 | Open | |
-| A3 | Can a site own its compute group and give our coordinator permission to attach jobs to it, without sharing the join secret? | Hospitals would keep control of what runs on their hardware, and we would not have to handle their secrets. | OQ9 | Open | |
+| A3 | Can a site own its compute group and give our coordinator permission to attach jobs to it, without sharing the join secret? | Hospitals would keep control of what runs on their hardware, and we would not have to handle their secrets. | OQ9 | Answered | 2026-11-25: same as A1. Production group setup is handled by Distributive in advance or by a future feature. Do not worry about it in the initial library. |
 | A4 | If one job's slices go to a compute group with N workers, is each worker guaranteed to get at least one slice? Can one worker take several slices at once? | Decides whether "one job per round with a slice per site" could replace "one job per site per round". Newton needs every site exactly once per round. | | Open | |
-| A5 | Is there a limit on how many compute groups an account can create, or on how many jobs can attach to one group at the same time? | Many hospitals mean many groups and many jobs per round. | | Open | |
+| A5 | Is there a limit on how many compute groups an account can create, or on how many jobs can attach to one group at the same time? | Many hospitals mean many groups and many jobs per round. | | Asked | 2026-11-25: no limits likely to matter. Dev-connect (Slack) will confirm. |
 
 ## Remote data and workers
 
@@ -83,9 +83,10 @@ have found is the compute group, so each site needs its own group (see
 
 | # | Question | Why it matters | Related | Status | Answer |
 |---|---|---|---|---|---|
-| A11 | Can a worker be limited to approved work functions (e.g. by code hash or signature), and not just to specific job IDs? | A hospital must trust our work function: it reads their rows and could return anything. Restricting by job ID (`dcp-worker -j`) does not fit, because we deploy new jobs every round. | OQ-LR5 | Open | |
-| A12 | Can jobs be long-lived and receive new slices each round (e.g. `addSlices`) instead of being redeployed every round? | Would allow one job per site for the whole training run (fewer deploys) and could make A11 easier. | | Open | |
+| A11 | Can a worker be limited to approved work functions (e.g. by code hash or signature), and not just to specific job IDs? | A hospital must trust our work function: it reads their rows and could return anything. Restricting by job ID (`dcp-worker -j`) does not fit, because we deploy new jobs every round. | OQ-LR5 | Asked | 2026-11-25: probably not right now; check with dev-connect. Alex wants to talk about why we need it, because compute groups are meant to be the trust mechanism that ensures the correct work is done. |
+| A12 | Can jobs be long-lived and receive new slices each round (e.g. `addSlices`) instead of being redeployed every round? | Would allow one job per site for the whole training run (fewer deploys) and could make A11 easier. | | Answered | 2026-11-25: Alex believes yes, but it may need configuration. Fine to do it this way if it turns out to be the right way to handle jobs. |
 | A13 | What audit trail does DCP keep of which jobs ran on a worker and what results they returned? | Hospitals will ask for an audit log of everything that left the site. | OQ11 | Open | |
+| A18 | Does DCP offer secure aggregation, or any way for the coordinator to see only the sum across sites? Does the scheduler see result payloads? | Newton-style training sends each site's gradient, Hessian, loss and row count. The Hessian is the site's feature covariance. | OQ-LR5, OQ11 | Answered | 2026-11-25: Remote results lets workers send results to a secure third party. Otherwise DCP sees results along the way. Aggregate stats may be fine, so include them over the wire for now. Privacy review with Alex the following week. |
 
 ## Networking: different Wi-Fi, the showcase venue, and hospitals
 
@@ -117,6 +118,6 @@ Our plan for the showcase, unless Alex advises otherwise:
 | # | Question | Why it matters | Related | Status | Answer |
 |---|---|---|---|---|---|
 | A14 | Does the showcase venue's Wi-Fi allow devices to connect to each other (no client isolation), or can Distributive provide a network for the demo? Can we bring our own hotspot or router? | DCP · machines mode needs the laptops to reach the coordinator directly. If the venue isolates devices, we need our own network or a tunnel. | | Open | |
-| A15 | Is there a DCP-native way for site agents to register with and send heartbeats to a coordinator, without a direct network connection (for example through the scheduler or a DCP messaging service)? | It would remove the local-network requirement entirely: sites would only need internet, as DCP workers already do. | OQ9 | Open | |
+| A15 | Is there a DCP-native way for site agents to register with and send heartbeats to a coordinator, without a direct network connection (for example through the scheduler or a DCP messaging service)? | It would remove the local-network requirement entirely: sites would only need internet, as DCP workers already do. | OQ9 | Asked | 2026-11-25: Alex was not sure what was being asked. Without a network connection he is not sure how anything would be sent, and guesses we need something outside DCP; the answer is "maybe". TODO: send more detail (the direct laptop-to-coordinator join page, agent download and 5 s heartbeat described above). |
 | A16 | Which domains and ports do DCP workers and clients need (scheduler, bank, package server, websockets)? Do they work behind strict firewalls or proxies? | Venue networks and, above all, hospital networks restrict outbound traffic. Hospitals' IT will ask for an exact allowlist. | OQ7 | Open | |
-| A17 | For real hospitals, which will never share a network with the coordinator: what does Distributive recommend for the coordinator-to-site channel (a public HTTPS coordinator, a tunnel, or something DCP provides)? Is a publicly reachable coordinator acceptable from a security point of view? | Decides how the join and registration flow (decision 0004) works beyond a single room. | A3, A15 | Open | |
+| A17 | For real hospitals, which will never share a network with the coordinator: what does Distributive recommend for the coordinator-to-site channel (a public HTTPS coordinator, a tunnel, or something DCP provides)? Is a publicly reachable coordinator acceptable from a security point of view? | Decides how the join and registration flow (decision 0004) works beyond a single room. | A3, A15 | Asked | 2026-11-25: Alex needs more detail on what the networking is used for. His instinct is to make it work first and secure it second. If it already works, send details and chat. TODO: send details. |
